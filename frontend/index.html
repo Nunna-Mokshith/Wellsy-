@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wellsy</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <!-- Title Bar (Custom Frameless) -->
+    <div class="titlebar" id="titlebar">
+        <div class="titlebar-left">
+            <div class="wellsy-dot"></div>
+            <span class="titlebar-name">Wellsy</span>
+        </div>
+        <div class="titlebar-center">
+            <span class="live-clock" id="liveClock">--:--:--</span>
+        </div>
+        <div class="titlebar-right">
+            <button class="titlebar-btn" id="btnMinimize">─</button>
+            <button class="titlebar-btn" id="btnMaximize">□</button>
+            <button class="titlebar-btn btn-close" id="btnClose">✕</button>
+        </div>
+    </div>
+
+    <!-- Rate Limit Bar -->
+    <div class="rate-bar" id="rateBar">
+        <div class="rate-bar-fill" id="rateBarFill"></div>
+        <span class="rate-bar-text" id="rateBarText">API: 0 / 1500</span>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="chat-container" id="chatContainer">
+        <!-- Welcome message -->
+        <div class="welcome-message" id="welcomeMessage">
+            <div class="wellsy-orb" id="wellsyOrb">
+                <div class="orb-ring"></div>
+                <div class="orb-ring ring-2"></div>
+                <div class="orb-core"></div>
+            </div>
+            <h2>Hey! I'm Wellsy 👋</h2>
+            <p>Your personal desktop buddy. Ask me anything or tell me what to do!</p>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar" id="statusBar">
+        <div class="status-indicator">
+            <div class="status-dot online" id="statusDot"></div>
+            <span id="statusText">Connecting...</span>
+        </div>
+        <div class="mic-waveform" id="micWaveform">
+            <canvas id="micCanvas" width="120" height="24"></canvas>
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="input-area">
+        <button class="mic-toggle-btn" id="micBtn" title="Toggle Mic">🎙️</button>
+        <input type="text" id="messageInput" placeholder="Talk to Wellsy..." autocomplete="off" autofocus>
+        <button class="send-btn" id="sendBtn">→</button>
+        <button class="stop-btn" id="stopBtn" title="Emergency Stop">■</button>
+    </div>
+
+    <script src="/renderer.js"></script>
+</body>
+</html>

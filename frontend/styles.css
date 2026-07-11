@@ -1,0 +1,620 @@
+/* ============================
+   WELLSY — Dark Dynamic Theme
+   ============================ */
+
+:root {
+    --bg-primary: #0a0a0f;
+    --bg-secondary: #12121a;
+    --bg-card: rgba(255, 255, 255, 0.04);
+    --bg-card-hover: rgba(255, 255, 255, 0.07);
+    --text-primary: #e8e8ef;
+    --text-secondary: #8888a0;
+    --text-muted: #55556a;
+    --accent-red: #ff3b3b;
+    --accent-red-glow: rgba(255, 59, 59, 0.3);
+    --accent-blue: #3b8bff;
+    --accent-blue-glow: rgba(59, 139, 255, 0.3);
+    --accent-green: #3bff6f;
+    --accent-yellow: #ffcc3b;
+    --border: rgba(255, 255, 255, 0.06);
+    --glass: rgba(255, 255, 255, 0.03);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --font: 'Inter', -apple-system, sans-serif;
+    --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    position: relative;
+}
+
+/* Animated background gradient */
+body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at 30% 20%, rgba(59, 139, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, rgba(255, 59, 59, 0.03) 0%, transparent 50%);
+    animation: bgBreath 8s ease-in-out infinite alternate;
+    pointer-events: none;
+    z-index: 0;
+}
+
+@keyframes bgBreath {
+    0%   { opacity: 0.5; transform: scale(1); }
+    100% { opacity: 1; transform: scale(1.05); }
+}
+
+/* ============================
+   TITLEBAR
+   ============================ */
+.titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 40px;
+    padding: 0 12px;
+    background: rgba(10, 10, 15, 0.95);
+    border-bottom: 1px solid var(--border);
+    -webkit-app-region: drag;
+    z-index: 10;
+    position: relative;
+}
+
+.titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wellsy-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    box-shadow: 0 0 8px var(--accent-blue-glow);
+    animation: dotPulse 2s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+    0%, 100% { box-shadow: 0 0 8px var(--accent-blue-glow); }
+    50%      { box-shadow: 0 0 16px var(--accent-blue-glow), 0 0 24px var(--accent-blue-glow); }
+}
+
+.titlebar-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.5px;
+}
+
+.titlebar-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.live-clock {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
+}
+
+.titlebar-right {
+    display: flex;
+    gap: 2px;
+    -webkit-app-region: no-drag;
+}
+
+.titlebar-btn {
+    width: 32px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.titlebar-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.btn-close:hover {
+    background: var(--accent-red) !important;
+    color: white !important;
+}
+
+/* ============================
+   RATE LIMIT BAR
+   ============================ */
+.rate-bar {
+    height: 3px;
+    background: var(--bg-secondary);
+    position: relative;
+    z-index: 5;
+}
+
+.rate-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+    transition: width 1s ease, background 0.5s ease;
+    border-radius: 0 2px 2px 0;
+}
+
+.rate-bar-fill.warning {
+    background: linear-gradient(90deg, var(--accent-yellow), var(--accent-red));
+}
+
+.rate-bar-text {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 9px;
+    color: var(--text-muted);
+    display: none;
+}
+
+.rate-bar:hover .rate-bar-text {
+    display: block;
+}
+
+/* ============================
+   CHAT CONTAINER
+   ============================ */
+.chat-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+    z-index: 1;
+    position: relative;
+}
+
+.chat-container::-webkit-scrollbar {
+    width: 4px;
+}
+
+.chat-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.chat-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+/* ============================
+   WELCOME MESSAGE
+   ============================ */
+.welcome-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 16px;
+    text-align: center;
+    animation: fadeInUp 0.8s ease;
+}
+
+.welcome-message h2 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.welcome-message p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    max-width: 280px;
+    line-height: 1.5;
+}
+
+/* Wellsy Orb — Idle animation */
+.wellsy-orb {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.orb-core {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    box-shadow: 0 0 20px var(--accent-blue-glow), 0 0 40px var(--accent-blue-glow);
+    animation: orbPulse 3s ease-in-out infinite;
+}
+
+.orb-ring {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(59, 139, 255, 0.2);
+    animation: ringPulse 3s ease-in-out infinite;
+}
+
+.ring-2 {
+    width: 80px;
+    height: 80px;
+    border-color: rgba(59, 139, 255, 0.1);
+    animation-delay: 0.5s;
+}
+
+@keyframes orbPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 0 20px var(--accent-blue-glow); }
+    50%      { transform: scale(1.15); box-shadow: 0 0 30px var(--accent-blue-glow), 0 0 50px var(--accent-blue-glow); }
+}
+
+@keyframes ringPulse {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50%      { transform: scale(1.1); opacity: 1; }
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================
+   CHAT MESSAGES
+   ============================ */
+.message {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    animation: msgSlideIn 0.4s ease;
+    max-width: 90%;
+}
+
+.message.user {
+    align-self: flex-end;
+}
+
+.message.wellsy {
+    align-self: flex-start;
+}
+
+.message-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.message.user .message-header {
+    justify-content: flex-end;
+}
+
+.msg-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+
+.message.user .msg-dot {
+    background: var(--accent-red);
+    box-shadow: 0 0 6px var(--accent-red-glow);
+}
+
+.message.wellsy .msg-dot {
+    background: var(--accent-blue);
+    box-shadow: 0 0 6px var(--accent-blue-glow);
+}
+
+/* Voice Waveform */
+.waveform-container {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 20px;
+    padding: 0 4px;
+}
+
+.wave-bar {
+    width: 3px;
+    border-radius: 2px;
+    animation: waveAnim 0.6s ease-in-out infinite alternate;
+}
+
+.message.user .wave-bar {
+    background: var(--accent-red);
+}
+
+.message.wellsy .wave-bar {
+    background: var(--accent-blue);
+}
+
+@keyframes waveAnim {
+    from { height: 4px; }
+    to   { height: 18px; }
+}
+
+.message-bubble {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    line-height: 1.55;
+    word-wrap: break-word;
+    position: relative;
+}
+
+.message.user .message-bubble {
+    background: rgba(255, 59, 59, 0.1);
+    border: 1px solid rgba(255, 59, 59, 0.15);
+    border-radius: var(--radius) var(--radius) 4px var(--radius);
+    color: var(--text-primary);
+}
+
+.message.wellsy .message-bubble {
+    background: rgba(59, 139, 255, 0.08);
+    border: 1px solid rgba(59, 139, 255, 0.12);
+    border-radius: var(--radius) var(--radius) var(--radius) 4px;
+    color: var(--text-primary);
+}
+
+.message-time {
+    font-size: 10px;
+    color: var(--text-muted);
+    align-self: flex-end;
+}
+
+.message.user .message-time {
+    align-self: flex-end;
+}
+
+.message.wellsy .message-time {
+    align-self: flex-start;
+}
+
+@keyframes msgSlideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Status messages */
+.status-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    background: var(--bg-card);
+    border-radius: var(--radius-sm);
+    align-self: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.thinking-dots {
+    display: flex;
+    gap: 3px;
+}
+
+.thinking-dots span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    animation: dotBounce 1.2s ease-in-out infinite;
+}
+
+.thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes dotBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30%           { transform: translateY(-6px); opacity: 1; }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* ============================
+   STATUS BAR
+   ============================ */
+.status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 16px;
+    background: rgba(18, 18, 26, 0.8);
+    border-top: 1px solid var(--border);
+    z-index: 5;
+    position: relative;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: var(--transition);
+}
+
+.status-dot.online {
+    background: var(--accent-green);
+    box-shadow: 0 0 6px rgba(59, 255, 111, 0.4);
+    animation: dotPulse 2s ease-in-out infinite;
+}
+
+.status-dot.error {
+    background: var(--accent-red);
+    box-shadow: 0 0 6px var(--accent-red-glow);
+}
+
+.mic-waveform {
+    opacity: 0.5;
+}
+
+/* ============================
+   INPUT AREA
+   ============================ */
+.input-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px 14px;
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border);
+    z-index: 5;
+    position: relative;
+}
+
+#messageInput {
+    flex: 1;
+    padding: 10px 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    font-family: var(--font);
+    font-size: 13px;
+    outline: none;
+    transition: var(--transition);
+}
+
+#messageInput::placeholder {
+    color: var(--text-muted);
+}
+
+#messageInput:focus {
+    border-color: rgba(59, 139, 255, 0.4);
+    box-shadow: 0 0 0 3px rgba(59, 139, 255, 0.1);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.send-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: var(--accent-blue);
+    color: white;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.send-btn:hover {
+    background: #5a9fff;
+    box-shadow: 0 0 12px var(--accent-blue-glow);
+    transform: scale(1.05);
+}
+
+.send-btn:active {
+    transform: scale(0.95);
+}
+
+.stop-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: rgba(255, 59, 59, 0.15);
+    color: var(--accent-red);
+    font-size: 14px;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.stop-btn:hover {
+    background: var(--accent-red);
+    color: white;
+    box-shadow: 0 0 12px var(--accent-red-glow);
+}
+
+.mic-toggle-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    font-size: 16px;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.mic-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: scale(1.05);
+}
+
+.mic-toggle-btn.recording {
+    background: var(--accent-red);
+    color: white;
+    box-shadow: 0 0 14px var(--accent-red-glow);
+    animation: micPulse 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes micPulse {
+    0% { transform: scale(1); box-shadow: 0 0 8px var(--accent-red-glow); }
+    100% { transform: scale(1.1); box-shadow: 0 0 20px var(--accent-red-glow); }
+}
+
+/* ============================
+   RESPONSIVE
+   ============================ */
+@media (max-width: 400px) {
+    .message-bubble {
+        font-size: 12px;
+    }
+}

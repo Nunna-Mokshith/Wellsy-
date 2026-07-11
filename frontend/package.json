@@ -1,0 +1,12 @@
+{
+  "name": "wellsy",
+  "version": "0.1.0",
+  "description": "Wellsy — Your Personal Desktop AI Assistant",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "dependencies": {
+    "electron": "^33.0.0"
+  }
+}
