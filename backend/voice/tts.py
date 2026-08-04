@@ -23,14 +23,16 @@ def _build_ssml(text: str) -> str:
     # 1. Clean markdown links: replace [Text](url) with just Text
     clean = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
     
-    # 2. Clean standalone web URLs and file links (e.g. http://..., file:///...)
+    # 2. Clean standalone web URLs, WS links and file links (e.g. http://..., file:///..., wss://...)
     clean = re.sub(r'https?://\S+', 'link', clean)
+    clean = re.sub(r'wss?://\S+', 'link', clean)
     clean = re.sub(r'file:///\S+', 'file', clean)
     
-    # 3. Clean up generic path patterns (like D:\Wellsy\backend...)
+    # 3. Clean up generic path patterns (like D:\Wellsy\backend... or D:/Wellsy/backend...)
     clean = re.sub(r'[A-Za-z]:\\[^\s]+', 'path', clean)
+    clean = re.sub(r'[A-Za-z]:/[^\s]+', 'path', clean)
     
-    # 4. Clean up other markdown symbols and special chars
+    # 4. Clean up other markdown symbols, parentheses, brackets, and special chars
     clean = clean.replace("*", "").replace("#", "").replace("`", "")
     clean = clean.replace("  ", " ").strip()
     
@@ -69,8 +71,15 @@ async def _generate_speech(text: str, output_path: str) -> str:
 
 async def _generate_speech_simple(text: str, output_path: str) -> str:
     """Fallback: generate speech without SSML."""
-    # Clean text
-    clean = text.replace("*", "").replace("#", "").replace("`", "")
+    import re
+    # Clean markdown links, URLs, and paths
+    clean = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    clean = re.sub(r'https?://\S+', 'link', clean)
+    clean = re.sub(r'wss?://\S+', 'link', clean)
+    clean = re.sub(r'file:///\S+', 'file', clean)
+    clean = re.sub(r'[A-Za-z]:\\[^\s]+', 'path', clean)
+    clean = re.sub(r'[A-Za-z]:/[^\s]+', 'path', clean)
+    clean = clean.replace("*", "").replace("#", "").replace("`", "")
     clean = clean.replace("  ", " ").strip()
     if len(clean) > 300:
         sentences = clean.split(". ")

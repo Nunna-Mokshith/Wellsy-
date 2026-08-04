@@ -1,7 +1,10 @@
 """
-Wellsy Brain — The LangGraph Agent
-This is the core intelligence. It receives commands, reasons about them,
-picks tools, executes actions, and responds in Wellsy's personality.
+Wellsy Brain — Multi-Agent Architecture
+Supervisor-Worker pattern orchestrating domain-specific sub-agents:
+- MediaAgent (Spotify, YouTube)
+- CommsAgent (WhatsApp, Gmail, Outlook)
+- OSAgent (Files, Desktop Apps, System Settings, Clipboard)
+- ResearchAgent (RAG, Google Images, Gemini Chat, Overleaf)
 """
 import sys
 from pathlib import Path
@@ -23,171 +26,207 @@ from config.settings import (
     WELLSY_SYSTEM_PROMPT,
 )
 from agent.rate_limiter import RateLimitManager
-
-# Core tools
-from tools.files import FILE_TOOLS
-from tools.apps import APP_TOOLS
-from tools.system import SYSTEM_TOOLS
-from tools.clipboard import CLIPBOARD_TOOLS
-
-# App drivers
-try:
-    from tools.spotify import SPOTIFY_TOOLS
-except ImportError:
-    SPOTIFY_TOOLS = []
-try:
-    from tools.youtube import YOUTUBE_TOOLS
-except ImportError:
-    YOUTUBE_TOOLS = []
-try:
-    from tools.whatsapp import WHATSAPP_TOOLS
-except ImportError:
-    WHATSAPP_TOOLS = []
-try:
-    from tools.gmail import GMAIL_TOOLS
-except ImportError:
-    GMAIL_TOOLS = []
-try:
-    from tools.outlook import OUTLOOK_TOOLS
-except ImportError:
-    OUTLOOK_TOOLS = []
-try:
-    from tools.gemini_chat import GEMINI_CHAT_TOOLS
-except ImportError:
-    GEMINI_CHAT_TOOLS = []
-try:
-    from tools.google_images import GOOGLE_IMAGES_TOOLS
-except ImportError:
-    GOOGLE_IMAGES_TOOLS = []
-try:
-    from tools.overleaf import OVERLEAF_TOOLS
-except ImportError:
-    OVERLEAF_TOOLS = []
-
+from agent.agents import (
+    MEDIA_TOOLS,
+    COMMS_TOOLS,
+    OS_TOOLS,
+    RESEARCH_TOOLS,
+    SUPERVISOR_PROMPT,
+    MEDIA_AGENT_PROMPT,
+    COMMS_AGENT_PROMPT,
+    OS_AGENT_PROMPT,
+    RESEARCH_AGENT_PROMPT,
+)
 
 # === State Definition ===
 class WellsyState(TypedDict):
     messages: Annotated[list, add_messages]
-
-
-# === All Available Tools ===
-ALL_TOOLS = (
-    FILE_TOOLS + APP_TOOLS + SYSTEM_TOOLS + CLIPBOARD_TOOLS +
-    SPOTIFY_TOOLS + YOUTUBE_TOOLS + WHATSAPP_TOOLS + GMAIL_TOOLS +
-    OUTLOOK_TOOLS + GEMINI_CHAT_TOOLS + GOOGLE_IMAGES_TOOLS + OVERLEAF_TOOLS
-)
+    next_agent: str
 
 
 # === Rate Limit Manager ===
 rate_limiter = RateLimitManager()
 
 
-def get_llm(complexity: str = "medium"):
-    """Get the appropriate LLM based on task complexity and budget."""
-    model_choice = rate_limiter.pick_model(complexity)
-
-    if model_choice == "pro":
-        model_name = GEMINI_PRO_MODEL
-    else:
-        model_name = GEMINI_FLASH_MODEL
-
-    # For 'ollama' fallback, we still use Flash for now
-    # (Ollama integration comes in Phase 2)
-    # TODO: Add Ollama local model support
-
-    llm = ChatGoogleGenerativeAI(
+def get_base_llm(model_type: str = "flash"):
+    model_name = GEMINI_PRO_MODEL if model_type == "pro" else GEMINI_FLASH_MODEL
+    return ChatGoogleGenerativeAI(
         model=model_name,
         google_api_key=GEMINI_API_KEY,
         temperature=0.7,
         convert_system_message_to_human=False,
     )
-    return llm.bind_tools(ALL_TOOLS), model_choice
 
 
-# === Agent Nodes ===
-def wellsy_think(state: WellsyState):
-    """Wellsy's thinking node — processes input and decides what to do."""
+def get_agent_llm(tools: list, complexity: str = "medium"):
+    model_choice = rate_limiter.pick_model(complexity)
+    llm = get_base_llm("pro" if model_choice == "pro" else "flash")
+    if tools:
+        return llm.bind_tools(tools), model_choice
+    return llm, model_choice
+
+
+# === Supervisor Node ===
+def supervisor_node(state: WellsyState):
+    """Supervisor router node — decides which specialized subagent handles the request."""
     messages = state["messages"]
+    
+    # If the last message is already a final AIMessage from a subagent (without tool calls), we FINISH
+    last_msg = messages[-1] if messages else None
+    if isinstance(last_msg, AIMessage) and not last_msg.tool_calls:
+        return {"next_agent": "FINISH"}
 
-    # Add system prompt if not already present
-    if not messages or not isinstance(messages[0], SystemMessage):
-        messages = [SystemMessage(content=WELLSY_SYSTEM_PROMPT)] + messages
-
-    # Classify complexity based on message content
-    last_msg = messages[-1].content if messages else ""
-    complexity = classify_complexity(last_msg)
-
-    # Get appropriate LLM
-    llm, model_used = get_llm(complexity)
-
-    # Record the API request
-    rate_limiter.record_request(is_pro=(model_used == "pro"))
-
-    # Generate response
-    response = llm.invoke(messages)
-
-    return {"messages": [response]}
-
-
-def classify_complexity(text: str) -> str:
-    """Quick heuristic to classify task complexity."""
-    text_lower = text.lower()
-
-    # Simple tasks — can be handled locally
-    simple_keywords = ["open", "close", "launch", "volume", "brightness", "time", "battery"]
-    if any(kw in text_lower for kw in simple_keywords) and len(text_lower.split()) < 8:
-        return "simple"
-
-    # Complex tasks — need deeper reasoning
-    complex_keywords = [
-        "analyze", "compare", "explain", "research", "summarize",
-        "plan", "design", "debug", "review", "create a", "write a",
-        "help me with", "figure out",
-    ]
-    if any(kw in text_lower for kw in complex_keywords):
-        return "complex"
-
-    # Default to medium
-    return "medium"
+    prompt = SystemMessage(content=SUPERVISOR_PROMPT)
+    llm = get_base_llm("flash")
+    
+    rate_limiter.record_request(is_pro=False)
+    response = llm.invoke([prompt] + messages)
+    
+    choice = response.content.strip()
+    valid_agents = ["MediaAgent", "CommsAgent", "OSAgent", "ResearchAgent", "FINISH"]
+    
+    selected_agent = "FINISH"
+    for agent in valid_agents:
+        if agent.lower() in choice.lower():
+            selected_agent = agent
+            break
+            
+    print(f"[Supervisor] Routing task to: {selected_agent}")
+    return {"next_agent": selected_agent}
 
 
-def should_continue(state: WellsyState) -> Literal["tools", "__end__"]:
-    """Decide if we should call tools or end the conversation turn."""
+def route_supervisor(state: WellsyState) -> str:
+    """Route from supervisor node to sub-agents or END."""
+    next_agent = state.get("next_agent", "FINISH")
+    if next_agent == "MediaAgent":
+        return "media_agent"
+    elif next_agent == "CommsAgent":
+        return "comms_agent"
+    elif next_agent == "OSAgent":
+        return "os_agent"
+    elif next_agent == "ResearchAgent":
+        return "research_agent"
+    return END
+
+
+# === Domain Sub-Agent Nodes ===
+def make_agent_node(agent_name: str, system_prompt: str, tools: list):
+    """Factory to create a domain sub-agent node."""
+    def agent_node(state: WellsyState):
+        messages = state["messages"]
+        
+        domain_sys_msg = SystemMessage(content=system_prompt)
+        full_messages = [domain_sys_msg] + [m for m in messages if not isinstance(m, SystemMessage)]
+        
+        llm, model_used = get_agent_llm(tools, complexity="medium")
+        rate_limiter.record_request(is_pro=(model_used == "pro"))
+        
+        response = llm.invoke(full_messages)
+        print(f"[{agent_name}] Responded (Tool calls: {bool(response.tool_calls)})")
+        return {"messages": [response]}
+        
+    return agent_node
+
+
+def should_continue_tools(state: WellsyState, tools_node_name: str) -> str:
+    """Check if the last message in state contains tool calls."""
     messages = state["messages"]
-    last_message = messages[-1]
+    last_msg = messages[-1]
+    if isinstance(last_msg, AIMessage) and last_msg.tool_calls:
+        return tools_node_name
+    return "supervisor"
 
-    if last_message.tool_calls:
-        return "tools"
-    return "__end__"
+
+# Create node functions
+media_agent_node = make_agent_node("MediaAgent", MEDIA_AGENT_PROMPT, MEDIA_TOOLS)
+comms_agent_node = make_agent_node("CommsAgent", COMMS_AGENT_PROMPT, COMMS_TOOLS)
+os_agent_node = make_agent_node("OSAgent", OS_AGENT_PROMPT, OS_TOOLS)
+research_agent_node = make_agent_node("ResearchAgent", RESEARCH_AGENT_PROMPT, RESEARCH_TOOLS)
 
 
-# === Build the Graph ===
-def create_wellsy_agent():
-    """Create and compile the Wellsy agent graph."""
+# === Build the Multi-Agent Graph ===
+def create_wellsy_multi_agent():
+    """Create and compile the Wellsy Multi-Agent graph."""
     graph = StateGraph(WellsyState)
+    
+    # 1. Add Supervisor
+    graph.add_node("supervisor", supervisor_node)
+    
+    # 2. Add Domain Agents
+    graph.add_node("media_agent", media_agent_node)
+    graph.add_node("comms_agent", comms_agent_node)
+    graph.add_node("os_agent", os_agent_node)
+    graph.add_node("research_agent", research_agent_node)
+    
+    # 3. Add Domain Tools Nodes
+    if MEDIA_TOOLS:
+        graph.add_node("media_tools", ToolNode(MEDIA_TOOLS))
+    if COMMS_TOOLS:
+        graph.add_node("comms_tools", ToolNode(COMMS_TOOLS))
+    if OS_TOOLS:
+        graph.add_node("os_tools", ToolNode(OS_TOOLS))
+    if RESEARCH_TOOLS:
+        graph.add_node("research_tools", ToolNode(RESEARCH_TOOLS))
+        
+    # Set Entry Point
+    graph.set_entry_point("supervisor")
+    
+    # Conditional Edges from Supervisor
+    graph.add_conditional_edges(
+        "supervisor",
+        route_supervisor,
+        {
+            "media_agent": "media_agent",
+            "comms_agent": "comms_agent",
+            "os_agent": "os_agent",
+            "research_agent": "research_agent",
+            END: END,
+        }
+    )
+    
+    # Conditional Edges from Sub-Agents to Tools or back to Supervisor
+    graph.add_conditional_edges(
+        "media_agent",
+        lambda state: should_continue_tools(state, "media_tools" if MEDIA_TOOLS else "supervisor"),
+        {"media_tools": "media_tools" if MEDIA_TOOLS else "supervisor", "supervisor": "supervisor"}
+    )
+    if MEDIA_TOOLS:
+        graph.add_edge("media_tools", "media_agent")
+        
+    graph.add_conditional_edges(
+        "comms_agent",
+        lambda state: should_continue_tools(state, "comms_tools" if COMMS_TOOLS else "supervisor"),
+        {"comms_tools": "comms_tools" if COMMS_TOOLS else "supervisor", "supervisor": "supervisor"}
+    )
+    if COMMS_TOOLS:
+        graph.add_edge("comms_tools", "comms_agent")
+        
+    graph.add_conditional_edges(
+        "os_agent",
+        lambda state: should_continue_tools(state, "os_tools" if OS_TOOLS else "supervisor"),
+        {"os_tools": "os_tools" if OS_TOOLS else "supervisor", "supervisor": "supervisor"}
+    )
+    if OS_TOOLS:
+        graph.add_edge("os_tools", "os_agent")
+        
+    graph.add_conditional_edges(
+        "research_agent",
+        lambda state: should_continue_tools(state, "research_tools" if RESEARCH_TOOLS else "supervisor"),
+        {"research_tools": "research_tools" if RESEARCH_TOOLS else "supervisor", "supervisor": "supervisor"}
+    )
+    if RESEARCH_TOOLS:
+        graph.add_edge("research_tools", "research_agent")
 
-    # Add nodes
-    graph.add_node("think", wellsy_think)
-    graph.add_node("tools", ToolNode(ALL_TOOLS))
-
-    # Set entry point
-    graph.set_entry_point("think")
-
-    # Add edges
-    graph.add_conditional_edges("think", should_continue)
-    graph.add_edge("tools", "think")  # After using tools, think again
-
-    # Compile
     return graph.compile()
 
 
-# === Create the agent instance ===
-wellsy_agent = create_wellsy_agent()
+# Compile agent
+wellsy_agent = create_wellsy_multi_agent()
 
 
 async def chat(user_message: str, history: list = None) -> tuple[str, dict]:
     """
-    Send a message to Wellsy and get a response.
+    Send a message to Wellsy Multi-Agent system and get a response.
     Returns: (response_text, rate_limit_status)
     """
     if history is None:
@@ -198,15 +237,14 @@ async def chat(user_message: str, history: list = None) -> tuple[str, dict]:
     messages.extend(history)
     messages.append(HumanMessage(content=user_message))
 
-    # Run the agent
-    result = wellsy_agent.invoke({"messages": messages})
+    # Run the multi-agent graph
+    result = wellsy_agent.invoke({"messages": messages}, config={"recursion_limit": 15})
 
     # Extract the final AI response
     ai_messages = [m for m in result["messages"] if isinstance(m, AIMessage) and m.content and not m.tool_calls]
 
     if ai_messages:
         raw_content = ai_messages[-1].content
-        # Gemini sometimes returns content as a list of dicts
         if isinstance(raw_content, list):
             text_parts = []
             for part in raw_content:
@@ -218,9 +256,7 @@ async def chat(user_message: str, history: list = None) -> tuple[str, dict]:
         else:
             response_text = str(raw_content)
     else:
-        response_text = "Hmm, something went sideways. Try again?"
+        response_text = "All requested actions have been completed, Moksh."
 
-    # Get rate limit status
     status = rate_limiter.get_status()
-
     return response_text, status

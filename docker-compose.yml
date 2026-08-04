@@ -1,0 +1,22 @@
+services:
+  wellsy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wellsy-jarvis
+    ports:
+      - "8765:8765"
+    env_file:
+      - .env
+    volumes:
+      # Persistent RAG storage
+      - ./storage:/app/storage
+      # Voice cache (optional, for TTS caching)
+      - ./voice_cache:/app/voice_cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8765/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

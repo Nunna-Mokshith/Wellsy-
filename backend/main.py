@@ -4,6 +4,7 @@ The backbone that connects the frontend to the agent brain.
 Serves the dashboard UI directly + handles WebSocket chat.
 """
 import sys
+import re
 import json
 import asyncio
 from pathlib import Path
@@ -186,10 +187,12 @@ async def websocket_endpoint(websocket: WebSocket):
                         }
                     })
 
-                    # Speak the response!
+                    # Speak the response (sanitized for natural voice)
                     if VOICE_ENABLED:
                         try:
-                            await speak_async(response_text)
+                            voice_text = sanitize_for_voice(response_text)
+                            if voice_text.strip():
+                                await speak_async(voice_text)
                         except Exception as ve:
                             print(f"  [!] Voice error: {ve}")
 
@@ -271,6 +274,64 @@ async def websocket_endpoint(websocket: WebSocket):
             except Exception:
                 pass
         manager.disconnect(websocket)
+
+
+def sanitize_for_voice(text: str) -> str:
+    """Aggressively strip URLs, file paths, markdown, code, emojis, and technical
+    artifacts so TTS reads clean, natural spoken English only."""
+
+    # 1. Remove entire code blocks (```...```)
+    text = re.sub(r'```[\s\S]*?```', '', text)
+    # 2. Remove inline code (`...`)
+    text = re.sub(r'`[^`]+`', '', text)
+
+    # 3. Remove ALL URLs (http, https, ftp, ws, wss, with or without protocol)
+    text = re.sub(r'(?:https?|ftp|wss?|file)://\S+', '', text)
+    # Bare URLs like localhost:8765 or www.google.com/path
+    text = re.sub(r'(?:localhost|(?:www\.)?[\w-]+\.(?:com|org|net|io|dev|co|ai|gov|edu))\S*', '', text)
+
+    # 4. Remove Windows file paths (D:\..., C:\..., D:/...)
+    text = re.sub(r'[A-Z]:[\\\/][\w\\\/.\-~]+', '', text)
+    # 5. Remove Unix/Linux file paths (/home/..., /usr/..., etc.)
+    text = re.sub(r'/(?:home|usr|var|tmp|etc|opt|mnt|media|proc|sys|dev|root|srv)[\w/.\-~]*', '', text)
+    # 6. Remove any remaining path-like patterns (e.g., backend/agent/brain.py)
+    text = re.sub(r'(?:[\w\-]+[/\\]){2,}[\w\-]+(?:\.\w+)?', '', text)
+
+    # 7. Remove markdown links [text](url) — keep display text only
+    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+    # 8. Remove markdown bold/italic markers
+    text = re.sub(r'\*{1,3}', '', text)
+    # 9. Remove markdown headers
+    text = re.sub(r'^#{1,6}\s+', '', text, flags=re.MULTILINE)
+    # 10. Remove markdown tables (lines with pipes)
+    text = re.sub(r'^\|.*\|$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^[\s]*[-:]+\|[-:|]+$', '', text, flags=re.MULTILINE)
+    # 11. Remove bullet point markers
+    text = re.sub(r'^[\s]*[-*•]\s+', '', text, flags=re.MULTILINE)
+    # 12. Remove numbered list markers (1. 2. etc.)
+    text = re.sub(r'^\s*\d+[.)]\s+', '', text, flags=re.MULTILINE)
+
+    # 13. Remove emojis and special unicode symbols
+    text = re.sub(r'[\U0001F300-\U0001F9FF\U00002600-\U000027BF\U0000FE00-\U0000FEFF\U0001FA00-\U0001FAFF\u200d\u2640\u2642\u2764\u2b50\u26a1\u2705\u274c\u2714\u2716\u25a1\u2500\u2715]+', '', text)
+
+    # 14. Remove parenthetical technical details like (e.g., 127.0.0.1:8765)
+    text = re.sub(r'\([^)]*(?:https?://|localhost|\.exe|\.py|\.js|\.css|\.html|\\\\|//)[^)]*\)', '', text)
+
+    # 15. Remove leftover technical tokens (.exe, .py, .js, etc.)
+    text = re.sub(r'\b\S+\.(?:exe|py|js|css|html|json|yaml|yml|toml|cfg|ini|log|txt|md|bat|sh|ps1)\b', '', text)
+
+    # 16. Remove IP addresses and port numbers
+    text = re.sub(r'\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b', '', text)
+
+    # 17. Clean up resulting mess
+    text = re.sub(r'\(\s*\)', '', text)        # Empty parentheses
+    text = re.sub(r'\[\s*\]', '', text)        # Empty brackets
+    text = re.sub(r':\s*$', '.', text, flags=re.MULTILINE)  # Trailing colons -> period
+    text = re.sub(r'\n{3,}', '\n\n', text)     # Collapse blank lines
+    text = re.sub(r'  +', ' ', text)           # Collapse spaces
+    text = re.sub(r'^\s+$', '', text, flags=re.MULTILINE)  # Remove blank lines
+
+    return text.strip()
 
 
 def _sync_chat(user_message: str) -> tuple[str, dict]:

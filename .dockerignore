@@ -1,0 +1,51 @@
+# Virtual environment
+venv/
+
+# Git
+.git/
+.gitignore
+
+# Models (large binary files)
+models/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Test & exploration scripts
+tests/
+test_*.py
+explore_*.py
+dump_*.py
+run_*.py
+send_*.py
+navigate_*.py
+open_*.py
+play_*.py
+download_report.py
+
+# Voice cache (mounted as volume instead)
+voice_cache/
+
+# WhatsApp browser profile
+whatsapp_profile/
+
+# Downloads
+downloads/
+
+# Voice demos
+voice_demos/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Docs
+README.md
+*.bat

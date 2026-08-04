@@ -1,51 +1,102 @@
-# Wellsy Jarvis Engine 🎙️🤖
+# 🪐 Wellsy — Multi-Agent AI Assistant
 
-Wellsy is a local, secure desktop assistant architecture built to operate as a customizable Jarvis engine. It bridges high-level AI reasoning with low-level local system commands using the Model Context Protocol (MCP).
-
----
-
-## ⚡ Key Architectural Features
-
-### 1. Secure Local MCP Server
-Wellsy runs a local FastAPI + FastMCP server exposing desktop integrations to Antigravity and client voice nodes:
-*   **Media Control**: Spotify & YouTube playlists, queries, playback triggers.
-*   **Communication**: Automated WhatsApp message routing and Gmail/Outlook inbox querying.
-*   **System Drivers**: Master volume and screen brightness controls.
-*   **Productivity**: Direct academic sync actions for Overleaf project files.
-
-### 2. High-Performance Local RAG Ingestion
-An active SQLite RAG pipeline indexes personal document directories (`D:\Wellsy\storage`) into searchable semantic vector sets:
-*   **Chunking & Processing**: Reads PDF, Docx, and TXT files natively.
-*   **Vector Models**: Generates vector records locally using `models/gemini-embedding-001`.
-*   **Similarity Search**: Computes matching document passages in under 5ms using NumPy cosine calculations.
-
-### 3. C++ Traversal Core (DLL)
-Optimized directory traversal logic written in native C++ using Win32 `FindFirstFileW` & `FindNextFileW` API loops. Linking the compiled `scanner.dll` wrapper directly into Python cut filesystem traversal time over large folder trees by **1.9x** compared to standard Python.
-
-### 4. Sandbox Path Protection
-All filesystem tools resolve canonical targets using path whitelists (e.g. restricts file writes to `D:\Wellsy\storage`). Rejects traversal injections (`../`) or forbidden drives (`C:\Windows`) at runtime.
+A Jarvis-class, voice-enabled, multi-agent AI assistant with a Solar System UI.
 
 ---
 
-## 🚀 Running & Verification
+## Quick Start (Docker — Recommended for Sharing)
 
 ### Prerequisites
-*   Python 3.10+
-*   G++ compiler (for building the C++ binary module)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed
+- A Google Gemini API key ([Get one free here](https://aistudio.google.com/apikey))
 
-### Start Wellsy Backend Server
-Launch the FastAPI WebSocket orchestrator:
-```bash
-D:\Wellsy\venv\Scripts\python.exe D:\Wellsy\backend\main.py
-```
-Open `http://localhost:8765` in your browser to interact with the voice and chat dashboard.
+### Steps
 
-### Run Verification Suite
-Run validation tests checking the SQLite vector database and Sandbox path gates:
-```bash
-D:\Wellsy\venv\Scripts\python.exe D:\Wellsy\tests\test_mcp_rag.py
+1. **Clone or download this project**
+
+2. **Create a `.env` file** in the project root:
+   ```
+   GEMINI_API_KEY=your_api_key_here
+   ```
+
+3. **Build and run:**
+   ```bash
+   docker compose up --build
+   ```
+
+4. **Open your browser:**
+   ```
+   http://localhost:8765
+   ```
+
+That's it! The Solar System dashboard will load with the multi-agent brain ready to chat.
+
+---
+
+## Quick Start (Native Windows — Full Features)
+
+Running natively on Windows enables desktop automation (Spotify, WhatsApp, app control).
+
+### Steps
+
+1. **Install Python 3.13+** from [python.org](https://www.python.org/downloads/)
+
+2. **Create virtual environment:**
+   ```bash
+   python -m venv venv
+   venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+3. **Create a `.env` file** in the project root:
+   ```
+   GEMINI_API_KEY=your_api_key_here
+   ```
+
+4. **Run:**
+   ```bash
+   python backend/main.py
+   ```
+
+5. **Open your browser:**
+   ```
+   http://localhost:8765
+   ```
+
+---
+
+## Feature Comparison
+
+| Feature | Docker | Native Windows |
+|---|:---:|:---:|
+| Web Dashboard (Solar System UI) | ✅ | ✅ |
+| Multi-Agent Brain (4 sub-agents) | ✅ | ✅ |
+| Voice Output (Jenny TTS) | ✅ | ✅ |
+| Chat + Gemini API | ✅ | ✅ |
+| RAG Knowledge Base | ✅ | ✅ |
+| Spotify Automation | ❌ | ✅ |
+| WhatsApp Messaging | ❌ | ✅ |
+| Desktop App Control | ❌ | ✅ |
+| Volume / Brightness | ❌ | ✅ |
+| Voice Input (Mic) | ❌ | ✅ |
+
+---
+
+## Architecture
+
 ```
-Run speed comparison benchmarks:
-```bash
-D:\Wellsy\venv\Scripts\python.exe D:\Wellsy\tests\test_scanner_speed.py
+User Voice/Text
+      │
+      ▼
+┌─────────────┐
+│  SUPERVISOR  │  ← Routes to the right specialist
+└──────┬──────┘
+       │
+  ┌────┼────┬────────┐
+  ▼    ▼    ▼        ▼
+🎵    💬   🖥️       🔬
+Media Comms OS/Sys Research
+Agent Agent Agent   Agent
 ```
+
+Built with: **LangGraph** · **Google Gemini** · **FastAPI** · **Edge TTS** · **Faster-Whisper**
