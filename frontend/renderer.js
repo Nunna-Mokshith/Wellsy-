@@ -279,8 +279,75 @@ function handleWsMessage(msg) {
         addIntelItem(msg.item);
     } else if (msg.type === 'rate_limit') {
         // Optional handling for rate limit
+    } else if (msg.type === 'confirmation_request') {
+        showConfirmationModal(msg.preview);
     }
 }
+
+// Confirmation Gate Modal Manager
+let currentConfirmationId = null;
+
+function showConfirmationModal(preview) {
+    currentConfirmationId = preview.request_id;
+    const modal = document.getElementById('confirmModal');
+    const badge = document.getElementById('modalBadge');
+    const title = document.getElementById('modalTitle');
+    const summary = document.getElementById('modalSummary');
+    const details = document.getElementById('modalDetails');
+    const approveBtn = document.getElementById('modalApproveBtn');
+    const rejectBtn = document.getElementById('modalRejectBtn');
+
+    if (!modal) return;
+
+    if (badge) {
+        badge.textContent = `${preview.tier} ACTION`;
+        badge.className = `modal-badge ${preview.tier.toLowerCase().replace('_', '-')}`;
+    }
+    if (summary) summary.textContent = preview.summary;
+
+    if (details) {
+        details.innerHTML = '';
+        if (preview.details && preview.details.length > 0) {
+            preview.details.forEach(d => {
+                const item = document.createElement('div');
+                item.textContent = `• ${d}`;
+                details.appendChild(item);
+            });
+        } else {
+            details.textContent = `Action: ${preview.tool_name}`;
+        }
+    }
+
+    modal.classList.remove('hidden');
+
+    // Click handlers
+    if (approveBtn) {
+        approveBtn.onclick = () => respondConfirmation(true);
+    }
+    if (rejectBtn) {
+        rejectBtn.onclick = () => respondConfirmation(false);
+    }
+}
+
+function respondConfirmation(approved) {
+    const modal = document.getElementById('confirmModal');
+    if (modal) modal.classList.add('hidden');
+
+    if (ws && currentConfirmationId) {
+        ws.send(JSON.stringify({
+            type: 'confirmation_response',
+            request_id: currentConfirmationId,
+            approved: approved
+        }));
+        addIntelItem({
+            text: `Action #${currentConfirmationId} ${approved ? 'APPROVED' : 'REJECTED'} by user`,
+            type: approved ? 'TIP' : 'WARN',
+            time: new Date().toLocaleTimeString()
+        });
+    }
+    currentConfirmationId = null;
+}
+
 
 connectWebSocket();
 

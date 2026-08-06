@@ -256,6 +256,27 @@
             </div>
         </footer>
     </div>
+
+    <!-- Confirmation Gate Modal (High-Risk Actions) -->
+    <div id="confirmModal" class="modal-overlay hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span id="modalBadge" class="modal-badge high-risk">HIGH RISK ACTION</span>
+                <h3 id="modalTitle">ACTION APPROVAL REQUIRED</h3>
+            </div>
+            <div class="modal-body">
+                <p id="modalSummary" class="modal-summary">Wellsy is requesting permission to execute an action.</p>
+                <div id="modalDetails" class="modal-details">
+                    <!-- Action details populated dynamically -->
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button id="modalApproveBtn" class="modal-btn approve-btn">✓ Approve & Execute</button>
+                <button id="modalRejectBtn" class="modal-btn reject-btn">✕ Reject</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/renderer.js"></script>
 </body>
 </html>

@@ -256,6 +256,14 @@ async def websocket_endpoint(websocket: WebSocket):
             raw = await websocket.receive_text()
             data = json.loads(raw)
 
+            if data.get("type") == "confirmation_response":
+                req_id = data.get("request_id")
+                approved = bool(data.get("approved"))
+                from safety.confirmation_gate import confirmation_gate
+                confirmation_gate.resolve_approval(req_id, approved)
+                print(f"  [+] Confirmation #{req_id} resolved: approved={approved}")
+                continue
+
             if data.get("type") == "chat":
                 user_message = data.get("message", "").strip()
                 if not user_message:
