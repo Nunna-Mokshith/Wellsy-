@@ -89,6 +89,42 @@ async def get_rate_limits():
     return rate_limiter.get_status()
 
 
+@app.get("/api/health")
+async def api_health():
+    """Health check for Docker and monitoring."""
+    return {"status": "ok", "version": "2.0.0", "time": datetime.now().isoformat()}
+
+
+@app.get("/api/system")
+async def get_system_stats():
+    """Live CPU, RAM, Disk stats for the Command Center gauges."""
+    try:
+        import psutil
+        cpu = psutil.cpu_percent(interval=0.3)
+        ram = psutil.virtual_memory().percent
+        disk = psutil.disk_usage('/').percent if sys.platform != 'win32' else psutil.disk_usage('C:\\').percent
+        battery = None
+        bat = psutil.sensors_battery()
+        if bat:
+            battery = {"percent": bat.percent, "plugged": bat.power_plugged}
+        return {"cpu": round(cpu), "ram": round(ram), "disk": round(disk), "battery": battery}
+    except Exception as e:
+        return {"cpu": 0, "ram": 0, "disk": 0, "battery": None, "error": str(e)}
+
+
+@app.get("/api/agents")
+async def get_agents_status():
+    """Return current agent roster and active state."""
+    return {
+        "agents": [
+            {"id": "media", "name": "Media Agent", "icon": "🎵", "status": "standby"},
+            {"id": "comms", "name": "Comms Agent", "icon": "💬", "status": "standby"},
+            {"id": "os", "name": "System Agent", "icon": "🖥️", "status": "standby"},
+            {"id": "research", "name": "Research Agent", "icon": "🔬", "status": "standby"},
+        ]
+    }
+
+
 # === 📁 Local RAG API Endpoints ===
 
 @app.post("/api/rag/sync")

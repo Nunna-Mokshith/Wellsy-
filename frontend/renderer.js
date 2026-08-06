@@ -1,709 +1,571 @@
-/**
- * Wellsy Frontend — Solar System Multi-Agent Renderer
- * Interactive Solar System canvas visualizer, voice transcript, WebSocket chat, conversation mode.
- */
-
-// === DOM Elements ===
-const chatContainer = document.getElementById('chatContainer');
-const messageInput = document.getElementById('messageInput');
-const sendBtn = document.getElementById('sendBtn');
-const stopBtn = document.getElementById('stopBtn');
-const liveClock = document.getElementById('liveClock');
-const statusDot = document.getElementById('statusDot');
-const statusText = document.getElementById('statusText');
-const rateBarFill = document.getElementById('rateBarFill');
-const rateBarText = document.getElementById('rateBarText');
-const welcomeMessage = document.getElementById('welcomeMessage');
-const micCanvas = document.getElementById('micCanvas');
-const micBtn = document.getElementById('micBtn');
-const jarvisCanvas = document.getElementById('jarvisCanvas');
-const orbStatusText = document.getElementById('orbStatusText');
-const transcriptContent = document.getElementById('transcriptContent');
-
-const pillMedia = document.getElementById('pillMedia');
-const pillComms = document.getElementById('pillComms');
-const pillOS = document.getElementById('pillOS');
-const pillResearch = document.getElementById('pillResearch');
-
-// === State ===
-let ws = null;
-let isConnected = false;
-let isThinking = false;
-let isMicActive = false;
-let conversationMode = false;
-let messageCount = 0;
-let orbState = 'idle'; // idle | listening | thinking | speaking
-let activeAgent = null; // null | MediaAgent | CommsAgent | OSAgent | ResearchAgent
-
-// === Live Clock ===
+// Live Clock
 function updateClock() {
     const now = new Date();
-    const h = String(now.getHours()).padStart(2, '0');
-    const m = String(now.getMinutes()).padStart(2, '0');
-    const s = String(now.getSeconds()).padStart(2, '0');
-    liveClock.textContent = `${h}:${m}:${s}`;
+    const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    const dateOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+    const dateString = now.toLocaleDateString('en-US', dateOptions);
+    
+    const clockEl = document.getElementById('liveClock');
+    if (clockEl) clockEl.textContent = timeString;
+    
+    const dateEl = document.getElementById('dateText');
+    if (dateEl) dateEl.textContent = dateString;
 }
 setInterval(updateClock, 1000);
 updateClock();
 
-// ============================================================
-//  SOLAR SYSTEM CANVAS VISUALIZER
-// ============================================================
-const ctx = jarvisCanvas.getContext('2d');
-const W = jarvisCanvas.width;
-const H = jarvisCanvas.height;
-const CX = W / 2;
-const CY = H / 2;
-
-// Planets Configuration (Sub-Agents)
-const PLANETS = [
-    // === Main Agent Planets ===
-    { id: 'MediaAgent', name: 'MEDIA', icon: '🎵', radius: 75, speed: 0.012, size: 9, color: '#00d4ff', glow: 'rgba(0, 212, 255, 0.7)', angle: 0.5, pill: pillMedia, isAgent: true },
-    { id: 'CommsAgent', name: 'COMMS', icon: '💬', radius: 110, speed: -0.008, size: 10, color: '#2ed573', glow: 'rgba(46, 213, 115, 0.7)', angle: 2.1, pill: pillComms, isAgent: true },
-    { id: 'OSAgent', name: 'OS/SYS', icon: '🖥️', radius: 145, speed: 0.006, size: 11, color: '#3b8bff', glow: 'rgba(59, 139, 255, 0.7)', angle: 3.8, pill: pillOS, isAgent: true },
-    { id: 'ResearchAgent', name: 'RESEARCH', icon: '🔬', radius: 175, speed: -0.004, size: 10, color: '#a855f7', glow: 'rgba(168, 85, 247, 0.7)', angle: 5.2, pill: pillResearch, isAgent: true },
-
-    // === Ambient Orbital Bodies (decorative — no agent routing) ===
-    { id: null, name: '', icon: '', radius: 48, speed: 0.022, size: 3.5, color: '#ff6b6b', glow: 'rgba(255, 107, 107, 0.4)', angle: 1.0, pill: null, isAgent: false },
-    { id: null, name: '', icon: '', radius: 58, speed: -0.018, size: 2.5, color: '#ffd93d', glow: 'rgba(255, 217, 61, 0.4)', angle: 4.2, pill: null, isAgent: false },
-    { id: null, name: '', icon: '', radius: 92, speed: 0.015, size: 4, color: '#6bcfff', glow: 'rgba(107, 207, 255, 0.4)', angle: 0.8, pill: null, isAgent: false },
-    { id: null, name: '', icon: '', radius: 128, speed: -0.01, size: 3, color: '#ff9ff3', glow: 'rgba(255, 159, 243, 0.4)', angle: 5.6, pill: null, isAgent: false },
-    { id: null, name: '', icon: '', radius: 160, speed: 0.007, size: 3.5, color: '#54a0ff', glow: 'rgba(84, 160, 255, 0.35)', angle: 1.9, pill: null, isAgent: false },
-    { id: null, name: '', icon: '', radius: 190, speed: -0.005, size: 2.5, color: '#5f27cd', glow: 'rgba(95, 39, 205, 0.35)', angle: 3.3, pill: null, isAgent: false },
-    { id: null, name: '', icon: '', radius: 196, speed: 0.003, size: 4, color: '#01a3a4', glow: 'rgba(1, 163, 164, 0.35)', angle: 0.3, pill: null, isAgent: false },
-    { id: null, name: '', icon: '', radius: 55, speed: 0.025, size: 2, color: '#f368e0', glow: 'rgba(243, 104, 224, 0.3)', angle: 2.8, pill: null, isAgent: false },
-];
-
-// Photon particles flowing along beams when an agent is active
-class PhotonParticle {
-    constructor(targetPlanet) {
-        this.targetPlanet = targetPlanet;
-        this.progress = Math.random() * 0.3; // 0 (Sun) to 1 (Planet)
-        this.speed = 0.02 + Math.random() * 0.03;
-        this.size = 1.5 + Math.random() * 2;
-    }
-    update() {
-        this.progress += this.speed;
-        if (this.progress > 1) {
-            this.progress = 0;
-        }
-    }
-    draw(ctx, sunX, sunY, planetX, planetY, color) {
-        const x = sunX + (planetX - sunX) * this.progress;
-        const y = sunY + (planetY - sunY) * this.progress;
-        ctx.beginPath();
-        ctx.arc(x, y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 8;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-    }
+// AI Core Sphere
+const coreCanvas = document.getElementById('coreCanvas');
+let coreCtx;
+if (coreCanvas) {
+    coreCtx = coreCanvas.getContext('2d');
+    coreCanvas.width = 350;
+    coreCanvas.height = 350;
 }
 
-const photonMap = {};
-PLANETS.forEach(p => {
-    photonMap[p.id] = [new PhotonParticle(p), new PhotonParticle(p), new PhotonParticle(p)];
-});
+let orbState = 'idle';
+let orbAngle = 0;
+const particles = Array.from({length: 40}).map(() => ({
+    angle: Math.random() * Math.PI * 2,
+    radius: 60 + Math.random() * 80,
+    speed: 0.005 + Math.random() * 0.015,
+    size: Math.random() * 2,
+    alpha: Math.random()
+}));
 
-// Ambient background stardust
-class Stardust {
-    constructor() {
-        this.reset();
-    }
-    reset() {
-        this.x = Math.random() * W;
-        this.y = Math.random() * H;
-        this.size = Math.random() * 1.2;
-        this.alpha = 0.1 + Math.random() * 0.4;
-        this.vy = -(0.1 + Math.random() * 0.3);
-    }
-    update() {
-        this.y += this.vy;
-        if (this.y < 0) this.reset();
-    }
-    draw(ctx) {
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(0, 212, 255, ${this.alpha})`;
-        ctx.fill();
-    }
-}
-const stardustArray = Array.from({ length: 70 }, () => new Stardust());
-
-// Draw Central Sun (Supervisor Core)
-function drawSun(ctx, cx, cy, time, intensity) {
-    const sunRadius = 22 + Math.sin(time * 2) * 2 + intensity * 8;
+function drawCore() {
+    if (!coreCtx || !coreCanvas) return;
+    const ctx = coreCtx;
+    const w = coreCanvas.width;
+    const h = coreCanvas.height;
+    const cx = w / 2;
+    const cy = h / 2;
     
-    // Outer Corona Glow
-    const coronaGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, sunRadius * 2.8);
-    coronaGrad.addColorStop(0, `rgba(0, 212, 255, ${0.3 + intensity * 0.3})`);
-    coronaGrad.addColorStop(0.5, `rgba(59, 139, 255, ${0.15 + intensity * 0.2})`);
-    coronaGrad.addColorStop(1, 'rgba(0, 212, 255, 0)');
+    ctx.clearRect(0, 0, w, h);
+    
+    const isActive = orbState === 'active';
+    const speedMultiplier = isActive ? 3 : 1;
+    const glowMultiplier = isActive ? 1.5 : 1;
+    
+    orbAngle += 0.01 * speedMultiplier;
+    
+    const pulse = 1 + 0.05 * Math.sin(Date.now() / (isActive ? 200 : 500));
+    
+    // Outer ring
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(orbAngle);
+    ctx.scale(pulse, pulse);
     ctx.beginPath();
-    ctx.arc(cx, cy, sunRadius * 2.8, 0, Math.PI * 2);
-    ctx.fillStyle = coronaGrad;
-    ctx.fill();
-
-    // Core Flame
-    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, sunRadius);
-    coreGrad.addColorStop(0, '#ffffff');
-    coreGrad.addColorStop(0.4, '#00d4ff');
-    coreGrad.addColorStop(0.8, '#3b8bff');
-    coreGrad.addColorStop(1, 'rgba(59, 139, 255, 0)');
+    ctx.arc(0, 0, 140, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0, 229, 255, ${0.3 * glowMultiplier})`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 15]);
+    ctx.stroke();
+    ctx.restore();
+    
+    // Middle ring
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-orbAngle * 1.5);
+    ctx.scale(pulse, pulse);
     ctx.beginPath();
-    ctx.arc(cx, cy, sunRadius, 0, Math.PI * 2);
-    ctx.fillStyle = coreGrad;
+    ctx.arc(0, 0, 100, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0, 229, 255, ${0.5 * glowMultiplier})`;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([]);
+    ctx.stroke();
+    ctx.restore();
+    
+    // Inner ring
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(orbAngle * 2);
+    ctx.scale(pulse, pulse);
+    ctx.beginPath();
+    ctx.arc(0, 0, 60, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(0, 229, 255, ${0.7 * glowMultiplier})`;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.restore();
+    
+    // Core
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(pulse, pulse);
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, 30);
+    grad.addColorStop(0, `rgba(0, 255, 255, ${1 * glowMultiplier})`);
+    grad.addColorStop(1, `rgba(0, 255, 255, 0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(0, 0, 30, 0, Math.PI * 2);
     ctx.fill();
-
-    // Center Supervisor Label
-    ctx.font = '700 8px Orbitron, sans-serif';
-    ctx.fillStyle = '#ffffff';
+    ctx.restore();
+    
+    // Particles
+    particles.forEach(p => {
+        p.angle += p.speed * speedMultiplier;
+        p.alpha += (Math.random() - 0.5) * 0.1;
+        if (p.alpha < 0) p.alpha = 0;
+        if (p.alpha > 1) p.alpha = 1;
+        
+        const px = cx + Math.cos(p.angle) * p.radius;
+        const py = cy + Math.sin(p.angle) * p.radius;
+        
+        ctx.fillStyle = `rgba(0, 229, 255, ${p.alpha * glowMultiplier})`;
+        ctx.beginPath();
+        ctx.arc(px, py, p.size, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    
+    // Text overlays
+    ctx.fillStyle = `rgba(0, 229, 255, ${0.9 * glowMultiplier})`;
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('JARVIS', cx, cy);
+    
+    ctx.font = 'bold 14px Orbitron, sans-serif';
+    ctx.fillText('WELLSY', cx, cy - 20);
+    
+    ctx.font = '10px Orbitron, sans-serif';
+    ctx.fillText('AI CORE', cx, cy + 5);
+    
+    ctx.fillStyle = `rgba(0, 229, 255, ${0.4 * glowMultiplier})`;
+    ctx.font = '8px Inter, sans-serif';
+    ctx.fillText('v2.0.0', cx, cy + 20);
+    
+    requestAnimationFrame(drawCore);
+}
+requestAnimationFrame(drawCore);
+
+// System Gauges
+const gaugeCanvas = document.getElementById('gaugeCanvas');
+let gaugeCtx;
+if (gaugeCanvas) {
+    gaugeCtx = gaugeCanvas.getContext('2d');
+    gaugeCanvas.width = 300;
+    gaugeCanvas.height = 120;
 }
 
-// Render Loop
-function renderSolarSystem() {
-    const time = Date.now() / 1000;
-    const intensity = getIntensity();
+let gaugeData = { cpu: 0, ram: 0, disk: 0 };
+
+function drawGauges() {
+    if (!gaugeCtx || !gaugeCanvas) return;
+    const ctx = gaugeCtx;
+    const w = gaugeCanvas.width;
+    const h = gaugeCanvas.height;
+    ctx.clearRect(0, 0, w, h);
     
-    ctx.clearRect(0, 0, W, H);
-
-    // Draw stardust
-    stardustArray.forEach(s => {
-        s.update();
-        s.draw(ctx);
-    });
-
-    // Draw Orbits & Planets
-    PLANETS.forEach(p => {
-        // Update angle
-        const speedMult = (p.isAgent && activeAgent === p.id) ? 2.5 : 1;
-        p.angle += p.speed * speedMult;
-
-        const px = CX + Math.cos(p.angle) * p.radius;
-        const py = CY + Math.sin(p.angle) * p.radius;
-
-        const isActive = p.isAgent && activeAgent === p.id;
-
-        // --- Ambient decorative bodies (no beams, no labels) ---
-        if (!p.isAgent) {
-            // Faint orbit trail
-            ctx.beginPath();
-            ctx.arc(CX, CY, p.radius, 0, Math.PI * 2);
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
-            ctx.lineWidth = 0.5;
-            ctx.setLineDash([2, 8]);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Tiny atmospheric glow
-            const ambientGlow = ctx.createRadialGradient(px, py, 0, px, py, p.size * 2);
-            ambientGlow.addColorStop(0, p.glow);
-            ambientGlow.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.beginPath();
-            ctx.arc(px, py, p.size * 2, 0, Math.PI * 2);
-            ctx.fillStyle = ambientGlow;
-            ctx.fill();
-
-            // Solid micro-planet core
-            ctx.beginPath();
-            ctx.arc(px, py, p.size, 0, Math.PI * 2);
-            ctx.fillStyle = p.color;
-            ctx.shadowColor = p.color;
-            ctx.shadowBlur = 3;
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            return;
-        }
-
-        // --- Main Agent Planets (full visuals) ---
-
-        // 1. Draw Orbit Ring
+    const startAngle = 135 * Math.PI / 180;
+    const endAngle = 405 * Math.PI / 180;
+    const sweep = endAngle - startAngle;
+    
+    function drawGauge(x, y, radius, value, color, label) {
+        // Background arc
         ctx.beginPath();
-        ctx.arc(CX, CY, p.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = isActive ? p.glow : 'rgba(0, 212, 255, 0.08)';
-        ctx.lineWidth = isActive ? 1.5 : 0.8;
-        if (!isActive) ctx.setLineDash([4, 6]);
-        else ctx.setLineDash([]);
+        ctx.arc(x, y, radius, startAngle, endAngle);
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 10;
+        ctx.lineCap = 'round';
         ctx.stroke();
-        ctx.setLineDash([]);
-
-        // 2. Draw Connection Beam (Sun to Planet)
-        ctx.beginPath();
-        ctx.moveTo(CX, CY);
-        ctx.lineTo(px, py);
-        ctx.strokeStyle = isActive ? p.glow : 'rgba(0, 212, 255, 0.06)';
-        ctx.lineWidth = isActive ? 2 : 0.6;
-        ctx.stroke();
-
-        // 3. Photon particles along beam if active
-        if (isActive && photonMap[p.id]) {
-            photonMap[p.id].forEach(particle => {
-                particle.update();
-                particle.draw(ctx, CX, CY, px, py, p.color);
-            });
-        }
-
-        // 4. Draw Planet Body
-        const currentSize = isActive ? p.size * 1.5 + Math.sin(time * 6) * 2 : p.size;
         
-        // Planet Atmosphere Glow
-        const glowGrad = ctx.createRadialGradient(px, py, 0, px, py, currentSize * 2.2);
-        glowGrad.addColorStop(0, p.glow);
-        glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        // Value arc
+        const valAngle = startAngle + sweep * (value / 100);
         ctx.beginPath();
-        ctx.arc(px, py, currentSize * 2.2, 0, Math.PI * 2);
-        ctx.fillStyle = glowGrad;
-        ctx.fill();
-
-        // Solid Planet Core
-        ctx.beginPath();
-        ctx.arc(px, py, currentSize, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.shadowColor = p.color;
-        ctx.shadowBlur = isActive ? 15 : 4;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        // Planet Label & Icon
-        ctx.font = isActive ? '700 9px Orbitron, sans-serif' : '500 8px Inter, sans-serif';
-        ctx.fillStyle = isActive ? p.color : 'rgba(156, 163, 175, 0.8)';
+        ctx.arc(x, y, radius, startAngle, valAngle);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 10;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        
+        // Center text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 16px Orbitron, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(`${p.icon} ${p.name}`, px, py + currentSize + 12);
+        ctx.textBaseline = 'middle';
+        ctx.fillText(Math.round(value) + '%', x, y);
         
-        // Update Legend Pill UI
-        if (p.pill) {
-            if (isActive) p.pill.classList.add('active');
-            else p.pill.classList.remove('active');
-        }
-    });
-
-    // Draw Central Sun Core
-    drawSun(ctx, CX, CY, time, intensity);
-
-    requestAnimationFrame(renderSolarSystem);
-}
-renderSolarSystem();
-
-// Get animation intensity based on orb state
-function getIntensity() {
-    switch (orbState) {
-        case 'listening': return 0.6 + Math.sin(Date.now() / 400) * 0.15;
-        case 'thinking': return 0.5 + Math.sin(Date.now() / 200) * 0.25;
-        case 'speaking': return 0.8 + Math.sin(Date.now() / 300) * 0.2;
-        default: return 0.15 + Math.sin(Date.now() / 2000) * 0.05;
+        // Label
+        ctx.fillStyle = '#aaaaaa';
+        ctx.font = '10px Inter, sans-serif';
+        ctx.fillText(label, x, y + radius + 15);
     }
+    
+    const r = 35;
+    const y = 50;
+    drawGauge(50, y, r, gaugeData.cpu, '#00d4ff', 'CPU');
+    drawGauge(150, y, r, gaugeData.ram, '#00ff88', 'RAM');
+    drawGauge(250, y, r, gaugeData.disk, '#bb00ff', 'DISK');
 }
 
-// Update orb state text & agent telemetry
-function setOrbState(state, label, agent = null) {
-    orbState = state;
-    if (agent) activeAgent = agent;
-    
-    orbStatusText.textContent = label || state.toUpperCase();
-    orbStatusText.className = `orb-status-text state-${state}`;
-}
-
-// Infer active agent from user text input heuristic
-function inferAgentFromText(text) {
-    const t = text.lower ? text.lower() : text.toLowerCase();
-    if (t.includes('spotify') || t.includes('music') || t.includes('youtube') || t.includes('pause') || t.includes('play')) {
-        return 'MediaAgent';
-    }
-    if (t.includes('whatsapp') || t.includes('chat') || t.includes('email') || t.includes('gmail') || t.includes('outlook') || t.includes('text')) {
-        return 'CommsAgent';
-    }
-    if (t.includes('cpu') || t.includes('ram') || t.includes('battery') || t.includes('file') || t.includes('folder') || t.includes('volume') || t.includes('brightness') || t.includes('app')) {
-        return 'OSAgent';
-    }
-    if (t.includes('search') || t.includes('image') || t.includes('research') || t.includes('rag') || t.includes('overleaf')) {
-        return 'ResearchAgent';
-    }
-    return null;
-}
-
-// ============================================================
-//  VOICE TRANSCRIPT
-// ============================================================
-function addTranscriptLine(sender, text) {
-    const placeholder = transcriptContent.querySelector('.transcript-placeholder');
-    if (placeholder) placeholder.remove();
-    
-    const line = document.createElement('div');
-    line.className = `transcript-line ${sender}`;
-    
-    const now = new Date().toLocaleTimeString('en-US', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-    });
-    
-    const label = sender === 'user' ? 'YOU' : 'WELLSY';
-    line.innerHTML = `
-        <span class="transcript-time">${now}</span>
-        <span class="transcript-sender">${label}</span>
-        <span class="transcript-text">${text}</span>
-    `;
-    
-    transcriptContent.appendChild(line);
-    transcriptContent.scrollTop = transcriptContent.scrollHeight;
-    
-    while (transcriptContent.children.length > 50) {
-        transcriptContent.removeChild(transcriptContent.firstChild);
+async function fetchSystemStats() {
+    try {
+        const res = await fetch('/api/system');
+        const data = await res.json();
+        updateGauges(data);
+        const cpuV = document.getElementById('cpuValue');
+        const ramV = document.getElementById('ramValue');
+        const diskV = document.getElementById('diskValue');
+        if (cpuV) cpuV.textContent = Math.round(data.cpu) + '%';
+        if (ramV) ramV.textContent = Math.round(data.ram) + '%';
+        if (diskV) diskV.textContent = Math.round(data.disk) + '%';
+    } catch(e) {
+        // Fallback or ignore
     }
 }
-
-// ============================================================
-//  AMBIENT MIC WAVEFORM
-// ============================================================
-const micCtx = micCanvas.getContext('2d');
-
-function drawMicWaveform() {
-    const w = micCanvas.width;
-    const h = micCanvas.height;
-    micCtx.clearRect(0, 0, w, h);
-
-    const bars = 24;
-    const barW = 2.5;
-    const gap = (w - bars * barW) / (bars - 1);
-    const time = Date.now() / 300;
-
-    for (let i = 0; i < bars; i++) {
-        const x = i * (barW + gap);
-        const activeMultiplier = isMicActive ? 3 : 1;
-        const barH = 2 + Math.sin(time + i * 0.5) * 2 * activeMultiplier + Math.random() * activeMultiplier;
-        const y = (h - barH) / 2;
-
-        if (isMicActive) {
-            micCtx.fillStyle = `rgba(0, 212, 255, ${0.5 + Math.sin(time + i) * 0.3})`;
-        } else if (isConnected) {
-            micCtx.fillStyle = `rgba(59, 139, 255, ${0.2 + Math.sin(time + i) * 0.1})`;
-        } else {
-            micCtx.fillStyle = 'rgba(156, 163, 175, 0.2)';
-        }
-        micCtx.fillRect(x, y, barW, barH);
-    }
-
-    requestAnimationFrame(drawMicWaveform);
+function updateGauges(data) {
+    gaugeData = data;
+    drawGauges();
 }
-drawMicWaveform();
+setInterval(fetchSystemStats, 3000);
+fetchSystemStats();
 
-// ============================================================
-//  WEBSOCKET CONNECTION
-// ============================================================
+// WebSocket Connection
+let ws = null;
+let reconnectDelay = 1000;
+let maxReconnectDelay = 30000;
+let activeAgent = null;
+
+let sessionTurns = 0;
+let toolCalls = 0;
+
 function connectWebSocket() {
     ws = new WebSocket('ws://localhost:8765/ws');
-
+    
     ws.onopen = () => {
-        isConnected = true;
-        statusDot.className = 'status-dot online';
-        statusText.textContent = 'Online';
-        setOrbState('idle', 'SOLAR SYSTEM ONLINE');
-        console.log('Connected to Wellsy backend');
+        const dot = document.getElementById('statusDot');
+        const txt = document.getElementById('statusText');
+        if (dot) { dot.style.backgroundColor = '#00ff88'; dot.style.boxShadow = '0 0 10px #00ff88'; }
+        if (txt) txt.textContent = 'Connected';
+        reconnectDelay = 1000;
     };
-
-    ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        handleMessage(data);
-    };
-
+    
     ws.onclose = () => {
-        isConnected = false;
-        statusDot.className = 'status-dot error';
-        statusText.textContent = 'Disconnected';
-        setOrbState('idle', 'RECONNECTING...');
-        console.log('Disconnected. Retrying in 3s...');
-        setTimeout(connectWebSocket, 3000);
+        const dot = document.getElementById('statusDot');
+        const txt = document.getElementById('statusText');
+        if (dot) { dot.style.backgroundColor = '#ff3333'; dot.style.boxShadow = '0 0 10px #ff3333'; }
+        if (txt) txt.textContent = 'Disconnected';
+        
+        setTimeout(connectWebSocket, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, maxReconnectDelay);
     };
-
-    ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        statusDot.className = 'status-dot error';
-        statusText.textContent = 'Connection error';
-    };
-}
-
-// ============================================================
-//  MESSAGE HANDLING
-// ============================================================
-function handleMessage(data) {
-    switch (data.type) {
-        case 'status':
-            updateRateLimits(data.data.rate_limits);
-            break;
-
-        case 'thinking':
-            showThinking();
-            const targetAgent = activeAgent || 'SUPERVISOR';
-            setOrbState('thinking', `SUPERVISOR -> ${targetAgent.toUpperCase()}`);
-            break;
-
-        case 'response':
-            hideThinking();
-            addMessage('wellsy', data.data.message, data.data.time);
-            addTranscriptLine('wellsy', truncateText(data.data.message, 120));
-            updateRateLimits(data.data.rate_limits);
-            setOrbState('speaking', 'WELLSY RESPONDING');
-            
-            // Fade active agent back to neutral after 4s
-            setTimeout(() => {
-                activeAgent = null;
-                if (orbState === 'speaking') setOrbState('idle', 'SUPERVISOR ONLINE');
-            }, 4000);
-
-            // Conversational turn-taking
-            if (conversationMode) {
-                const estimatedSpeechMs = Math.max(3000, (data.data.message.length / 12) * 1000 + 1000);
-                setTimeout(() => {
-                    if (conversationMode && isConnected) {
-                        ws.send(JSON.stringify({ type: 'start_mic' }));
-                        setOrbState('listening', 'LISTENING');
-                    }
-                }, estimatedSpeechMs);
-            }
-            break;
-
-        case 'error':
-            hideThinking();
-            addMessage('wellsy', data.data.message);
-            setOrbState('idle', 'ERROR HANDLED');
-            activeAgent = null;
-            if (conversationMode) {
-                setTimeout(() => {
-                    if (conversationMode && isConnected) {
-                        ws.send(JSON.stringify({ type: 'start_mic' }));
-                        setOrbState('listening', 'LISTENING');
-                    }
-                }, 2000);
-            }
-            break;
-
-        case 'mic_status':
-            isMicActive = data.data.active;
-            if (isMicActive) {
-                micBtn.classList.add('recording');
-                statusText.textContent = data.data.info || 'Listening...';
-                setOrbState('listening', 'LISTENING');
-            } else {
-                micBtn.classList.remove('recording');
-                if (!conversationMode) {
-                    statusText.textContent = 'Online';
-                    setOrbState('idle', 'SUPERVISOR ONLINE');
-                }
-            }
-            break;
-
-        case 'speech_transcription':
-            if (isMicActive) {
-                ws.send(JSON.stringify({ type: 'stop_mic' }));
-            }
-            addTranscriptLine('user', data.data.message);
-            messageInput.value = data.data.message;
-            sendMessage();
-            break;
-
-        case 'pong':
-            updateRateLimits(data.data.rate_limits);
-            break;
-    }
-}
-
-// ============================================================
-//  CHAT FUNCTIONS
-// ============================================================
-function sendMessage() {
-    const text = messageInput.value.trim();
-    if (!text || !isConnected || isThinking) return;
-
-    if (welcomeMessage) {
-        welcomeMessage.style.display = 'none';
-    }
-
-    // Infer sub-agent targeting for immediate visual beam activation
-    activeAgent = inferAgentFromText(text);
-
-    addMessage('user', text);
-    addTranscriptLine('user', truncateText(text, 120));
-
-    ws.send(JSON.stringify({
-        type: 'chat',
-        message: text,
-    }));
-
-    messageInput.value = '';
-    isThinking = true;
-}
-
-function addMessage(sender, text, time = null) {
-    const now = time || new Date().toLocaleTimeString('en-US', {
-        hour: '2-digit', minute: '2-digit', hour12: false,
-    });
-
-    messageCount++;
-    const isUser = sender === 'user';
-
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${sender}`;
-
-    const waveBars = createWaveform();
-
-    msgDiv.innerHTML = `
-        <div class="message-header">
-            <div class="msg-dot"></div>
-            <span>${isUser ? 'You' : 'Wellsy'}</span>
-            ${waveBars}
-        </div>
-        <div class="message-bubble">${formatMessage(text)}</div>
-        <span class="message-time">${now}</span>
-    `;
-
-    chatContainer.appendChild(msgDiv);
-    chatContainer.scrollTop = chatContainer.scrollHeight;
-
-    setTimeout(() => {
-        const waveContainer = msgDiv.querySelector('.waveform-container');
-        if (waveContainer) {
-            const bars = waveContainer.querySelectorAll('.wave-bar');
-            bars.forEach(bar => {
-                bar.style.animation = 'none';
-                bar.style.height = `${3 + Math.random() * 6}px`;
-            });
+    
+    ws.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            handleWsMessage(data);
+        } catch(e) {
+            console.error('WS Parse Error:', e);
         }
-    }, 2500);
+    };
 }
 
-function createWaveform() {
-    const bars = 14;
-    let html = '<div class="waveform-container">';
-    for (let i = 0; i < bars; i++) {
-        const delay = (i * 0.06).toFixed(2);
-        const h = 3 + Math.random() * 12;
-        html += `<div class="wave-bar" style="animation-delay:${delay}s; height:${h}px"></div>`;
+function handleWsMessage(msg) {
+    if (msg.type === 'response') {
+        appendMessage('ai', msg.text, msg.agent);
+        hideThinking();
+    } else if (msg.type === 'thinking') {
+        showThinking();
+    } else if (msg.type === 'agent_active') {
+        activateAgent(msg.agent);
+        addIntelItem({text: `${msg.agent} activated`, type: 'INFO', time: new Date().toLocaleTimeString()});
+        toolCalls++;
+        updateMemoryStats();
+    } else if (msg.type === 'agent_done') {
+        deactivateAgent(msg.agent);
+    } else if (msg.type === 'transcript') {
+        appendMessage('user', msg.text);
+    } else if (msg.type === 'audio') {
+        playAudio(msg.data);
+    } else if (msg.type === 'intelligence') {
+        addIntelItem(msg.item);
+    } else if (msg.type === 'rate_limit') {
+        // Optional handling for rate limit
     }
-    html += '</div>';
-    return html;
 }
 
-function formatMessage(text) {
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/`(.*?)`/g, '<code>$1</code>')
-        .replace(/\n/g, '<br>');
-}
+connectWebSocket();
 
-function truncateText(text, maxLen) {
-    const clean = text.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-    return clean.length > maxLen ? clean.substring(0, maxLen) + '...' : clean;
+// Chat Interface
+function appendMessage(sender, text, agent = '') {
+    const chatContainer = document.getElementById('chatContainer');
+    if (!chatContainer) return;
+    
+    const msgDiv = document.createElement('div');
+    msgDiv.className = \`msg-\${sender}\`;
+    msgDiv.style.margin = '10px 0';
+    msgDiv.style.padding = '10px';
+    msgDiv.style.borderRadius = '5px';
+    msgDiv.style.maxWidth = '80%';
+    msgDiv.style.clear = 'both';
+    
+    if (sender === 'user') {
+        msgDiv.style.float = 'right';
+        msgDiv.style.backgroundColor = '#00d4ff22';
+        msgDiv.style.border = '1px solid #00d4ff55';
+    } else {
+        msgDiv.style.float = 'left';
+        msgDiv.style.backgroundColor = '#222222';
+        msgDiv.style.border = '1px solid #444444';
+        
+        if (agent) {
+            const agentTag = document.createElement('div');
+            agentTag.textContent = agent;
+            agentTag.style.fontSize = '10px';
+            agentTag.style.color = '#00d4ff';
+            agentTag.style.marginBottom = '5px';
+            msgDiv.appendChild(agentTag);
+        }
+    }
+    
+    const textSpan = document.createElement('span');
+    textSpan.textContent = text;
+    textSpan.style.color = '#ffffff';
+    textSpan.style.fontFamily = 'Inter, sans-serif';
+    
+    msgDiv.appendChild(textSpan);
+    chatContainer.appendChild(msgDiv);
+    
+    const clearDiv = document.createElement('div');
+    clearDiv.style.clear = 'both';
+    chatContainer.appendChild(clearDiv);
+    
+    chatContainer.scrollTop = chatContainer.scrollHeight;
 }
-
-// ============================================================
-//  THINKING INDICATOR
-// ============================================================
-let thinkingEl = null;
 
 function showThinking() {
-    isThinking = true;
-    thinkingEl = document.createElement('div');
-    thinkingEl.className = 'status-message';
-    thinkingEl.id = 'thinkingIndicator';
-    thinkingEl.innerHTML = `
-        <div class="thinking-dots">
-            <span></span><span></span><span></span>
-        </div>
-        <span>Supervisor orchestrating agents...</span>
-    `;
-    chatContainer.appendChild(thinkingEl);
+    const chatContainer = document.getElementById('chatContainer');
+    if (!chatContainer) return;
+    const thinkingDiv = document.createElement('div');
+    thinkingDiv.id = 'thinkingIndicator';
+    thinkingDiv.textContent = 'Thinking...';
+    thinkingDiv.style.color = '#00d4ff';
+    thinkingDiv.style.padding = '10px';
+    thinkingDiv.style.fontFamily = 'Inter, sans-serif';
+    chatContainer.appendChild(thinkingDiv);
     chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    // Animate dots
+    let dots = 0;
+    thinkingDiv.dataset.interval = setInterval(() => {
+        dots = (dots + 1) % 4;
+        thinkingDiv.textContent = 'Thinking' + '.'.repeat(dots);
+    }, 500);
 }
 
 function hideThinking() {
-    isThinking = false;
-    const el = document.getElementById('thinkingIndicator');
-    if (el) el.remove();
-}
-
-// ============================================================
-//  RATE LIMITS
-// ============================================================
-function updateRateLimits(limits) {
-    if (!limits) return;
-    const pct = limits.budget_percent || 0;
-    rateBarFill.style.width = `${pct}%`;
-    rateBarText.textContent = `API: ${limits.daily_used} / ${limits.daily_limit}`;
-    if (pct > 75) {
-        rateBarFill.classList.add('warning');
-    } else {
-        rateBarFill.classList.remove('warning');
+    const indicator = document.getElementById('thinkingIndicator');
+    if (indicator) {
+        clearInterval(indicator.dataset.interval);
+        indicator.remove();
     }
 }
 
-// ============================================================
-//  EVENT LISTENERS
-// ============================================================
-sendBtn.addEventListener('click', sendMessage);
+function sendChatMessage(text) {
+    if (!text || !text.trim() || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'chat', text: text }));
+    appendMessage('user', text);
+    const input = document.getElementById('chatInput');
+    if (input) input.value = '';
+    sessionTurns++;
+    updateMemoryStats();
+}
 
-micBtn.addEventListener('click', () => {
-    if (!isConnected) return;
-    
-    if (conversationMode) {
-        conversationMode = false;
-        ws.send(JSON.stringify({ type: 'stop_mic' }));
-        micBtn.classList.remove('conversation-active');
-        statusText.textContent = 'Online';
-        setOrbState('idle', 'SUPERVISOR ONLINE');
-        activeAgent = null;
-    } else {
-        conversationMode = true;
-        ws.send(JSON.stringify({ type: 'start_mic' }));
-        micBtn.classList.add('conversation-active');
-        statusText.textContent = 'Conversation active';
-        setOrbState('listening', 'LISTENING');
-    }
-});
+const sendBtn = document.getElementById('sendBtn');
+const chatInput = document.getElementById('chatInput');
+if (sendBtn) {
+    sendBtn.addEventListener('click', () => {
+        if (chatInput) sendChatMessage(chatInput.value);
+    });
+}
+if (chatInput) {
+    chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendChatMessage(chatInput.value);
+        }
+    });
+}
 
-messageInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
-});
+const stopBtn = document.getElementById('stopBtn');
+if (stopBtn) {
+    stopBtn.addEventListener('click', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'stop' }));
+        }
+    });
+}
 
-stopBtn.addEventListener('click', () => {
-    hideThinking();
-    isThinking = false;
-    conversationMode = false;
-    activeAgent = null;
-    addMessage('wellsy', 'Standing by, Moksh.');
-    if (isMicActive) {
-        ws.send(JSON.stringify({ type: 'stop_mic' }));
-    }
-    micBtn.classList.remove('conversation-active');
-    statusText.textContent = 'Online';
-    setOrbState('idle', 'SUPERVISOR ONLINE');
-});
-
-// Window controls
-document.getElementById('btnMinimize')?.addEventListener('click', () => {
-    window.electronAPI?.minimize();
-});
-document.getElementById('btnMaximize')?.addEventListener('click', () => {
-    window.electronAPI?.maximize();
-});
-document.getElementById('btnClose')?.addEventListener('click', () => {
-    window.electronAPI?.close();
-});
-
-// Ping every 30s
-setInterval(() => {
+// Voice / Mic
+let isListening = false;
+function toggleVoice() {
+    isListening = !isListening;
     if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'ping' }));
+        ws.send(JSON.stringify({ type: 'voice_toggle' }));
     }
-}, 30000);
+    
+    const talkBtn = document.getElementById('talkBtn');
+    if (talkBtn) {
+        if (isListening) {
+            talkBtn.textContent = 'I am listening...';
+            talkBtn.classList.add('pulsing');
+        } else {
+            talkBtn.textContent = 'TALK';
+            talkBtn.classList.remove('pulsing');
+        }
+    }
+}
 
-// === START ===
-connectWebSocket();
+const talkBtn = document.getElementById('talkBtn');
+if (talkBtn) talkBtn.addEventListener('click', toggleVoice);
+
+const micBtn = document.getElementById('micBtn');
+if (micBtn) micBtn.addEventListener('click', toggleVoice);
+
+const sidebarMicBtn = document.getElementById('sidebarMicBtn');
+if (sidebarMicBtn) sidebarMicBtn.addEventListener('click', toggleVoice);
+
+// Intelligence Feed
+function addIntelItem(item) {
+    const intelList = document.getElementById('intelList');
+    if (!intelList) return;
+    
+    const li = document.createElement('li');
+    li.style.padding = '8px';
+    li.style.borderBottom = '1px solid #333';
+    li.style.fontSize = '12px';
+    li.style.color = '#ddd';
+    li.style.fontFamily = 'Inter, sans-serif';
+    
+    const timeSpan = document.createElement('span');
+    timeSpan.textContent = \`[\${item.time || new Date().toLocaleTimeString()}] \`;
+    timeSpan.style.color = '#888';
+    
+    const typeSpan = document.createElement('span');
+    typeSpan.textContent = \`\${item.type || 'INFO'} \`;
+    typeSpan.style.fontWeight = 'bold';
+    
+    if (item.type === 'WARN') typeSpan.style.color = '#ffaa00';
+    else if (item.type === 'TIP') typeSpan.style.color = '#00ff88';
+    else typeSpan.style.color = '#00d4ff';
+    
+    const textSpan = document.createElement('span');
+    textSpan.textContent = item.text;
+    
+    li.appendChild(timeSpan);
+    li.appendChild(typeSpan);
+    li.appendChild(textSpan);
+    
+    intelList.insertBefore(li, intelList.firstChild);
+    
+    if (intelList.children.length > 20) {
+        intelList.removeChild(intelList.lastChild);
+    }
+}
+
+// Agent Status Updates
+function activateAgent(agentId) {
+    activeAgent = agentId;
+    orbState = 'active';
+    
+    const card = document.getElementById(\`agentCard-\${agentId}\`);
+    if (card) {
+        card.classList.add('agent-active');
+        const badge = card.querySelector('.status-badge');
+        if (badge) {
+            badge.textContent = 'Active';
+            badge.style.color = '#00ff88';
+        }
+    }
+}
+
+function deactivateAgent(agentId) {
+    if (activeAgent === agentId) {
+        activeAgent = null;
+        orbState = 'idle';
+    }
+    
+    const card = document.getElementById(\`agentCard-\${agentId}\`);
+    if (card) {
+        card.classList.remove('agent-active');
+        const badge = card.querySelector('.status-badge');
+        if (badge) {
+            badge.textContent = 'Standby';
+            badge.style.color = '#888888';
+        }
+    }
+}
+
+// Sidebar Navigation
+const navItems = document.querySelectorAll('.nav-item');
+navItems.forEach(item => {
+    item.addEventListener('click', () => {
+        navItems.forEach(ni => ni.classList.remove('active'));
+        item.classList.add('active');
+    });
+});
+
+// Quick Commands
+const cmdNewTask = document.getElementById('cmdNewTask');
+if (cmdNewTask) {
+    cmdNewTask.addEventListener('click', () => {
+        if (chatInput) {
+            chatInput.value = 'Schedule a task: ';
+            chatInput.focus();
+        }
+    });
+}
+
+const cmdVoiceChat = document.getElementById('cmdVoiceChat');
+if (cmdVoiceChat) {
+    cmdVoiceChat.addEventListener('click', toggleVoice);
+}
+
+const cmdCalendar = document.getElementById('cmdCalendar');
+if (cmdCalendar) {
+    cmdCalendar.addEventListener('click', () => {
+        sendChatMessage('Show my schedule for today');
+    });
+}
+
+const cmdWorkflow = document.getElementById('cmdWorkflow');
+if (cmdWorkflow) {
+    cmdWorkflow.addEventListener('click', () => {
+        sendChatMessage('What workflows are available?');
+    });
+}
+
+// Audio Playback
+function playAudio(base64Data) {
+    try {
+        const audio = new Audio('data:audio/mp3;base64,' + base64Data);
+        audio.play().catch(e => console.error('Audio play error:', e));
+    } catch(e) {
+        console.error('Audio setup error:', e);
+    }
+}
+
+// Memory Stats
+function updateMemoryStats() {
+    const turns = document.getElementById('sessionTurns');
+    const tools = document.getElementById('toolCalls');
+    
+    if (turns) turns.textContent = sessionTurns;
+    if (tools) tools.textContent = toolCalls;
+}
+
+// Responsive Handling
+window.addEventListener('resize', () => {
+    // Basic handler for resize, canvases handle their own internal bounds in the rendering loop
+});
+
+// CSS for pulse effect
+const style = document.createElement('style');
+style.textContent = \`
+    .pulsing {
+        animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+\`;
+document.head.appendChild(style);

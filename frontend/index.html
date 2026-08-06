@@ -3,122 +3,259 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wellsy</title>
-    <meta name="description" content="Wellsy - Multi-Agent Solar System AI Assistant">
+    <title>Wellsy Command Center</title>
+    <meta name="description" content="Wellsy - Jarvis-class AI Command Center">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-    <!-- Title Bar -->
-    <div class="titlebar" id="titlebar">
-        <div class="titlebar-left">
-            <div class="wellsy-dot"></div>
-            <span class="titlebar-name">WELLSY</span>
-            <span class="titlebar-tag">MULTI-AGENT SOLAR SYSTEM</span>
-        </div>
-        <div class="titlebar-center">
-            <span class="live-clock" id="liveClock">--:--:--</span>
-        </div>
-        <div class="titlebar-right">
-            <button class="titlebar-btn" id="btnMinimize">&#x2500;</button>
-            <button class="titlebar-btn" id="btnMaximize">&#x25A1;</button>
-            <button class="titlebar-btn btn-close" id="btnClose">&#x2715;</button>
-        </div>
-    </div>
-
-    <!-- Rate Limit Bar -->
-    <div class="rate-bar" id="rateBar">
-        <div class="rate-bar-fill" id="rateBarFill"></div>
-        <span class="rate-bar-text" id="rateBarText">API: 0 / 1500</span>
-    </div>
-
-    <!-- Main Layout: Solar System Visualizer + Chat -->
-    <div class="main-layout">
-
-        <!-- LEFT: Solar System Panel -->
-        <div class="jarvis-panel">
-            <div class="solar-system-header">
-                <span class="solar-title">AGENT TOPOLOGY HUD</span>
+    <div id="app">
+        <!-- TOP BAR -->
+        <header id="topBar">
+            <div class="top-bar-left">
+                <span class="glowing-dot"></span>
+                <h1 class="brand-title">WELLSY</h1>
+                <span class="brand-tag">COMMAND CENTER</span>
             </div>
-            <div class="jarvis-orb-container">
-                <canvas id="jarvisCanvas" width="400" height="400"></canvas>
+            <div class="top-bar-center">
+                <div class="date-line">Tuesday, 5 August 2026</div>
+                <div id="liveClock" class="live-clock">00:00:00</div>
             </div>
-            <div class="orb-status-text" id="orbStatusText">SUPERVISOR ONLINE</div>
-
-            <!-- Agent Legend Pills -->
-            <div class="agent-legend">
-                <div class="legend-pill media" id="pillMedia">🎵 Media</div>
-                <div class="legend-pill comms" id="pillComms">💬 Comms</div>
-                <div class="legend-pill os" id="pillOS">🖥️ OS/Sys</div>
-                <div class="legend-pill research" id="pillResearch">🔬 Research</div>
-            </div>
-
-            <!-- Voice Transcript -->
-            <div class="voice-transcript">
-                <div class="transcript-label">VOICE TRANSCRIPT</div>
-                <div class="transcript-content" id="transcriptContent">
-                    <div class="transcript-placeholder">Voice transcript will appear here...</div>
+            <div class="top-bar-right">
+                <div class="system-status-badge">
+                    <span class="status-dot green"></span>
+                    SYSTEM STATUS &bull; OPTIMAL
                 </div>
+                <input type="text" placeholder="Search..." class="search-input">
+                <button class="icon-btn notification-btn" aria-label="Notifications">&#128276;</button>
+                <button class="icon-btn settings-btn" aria-label="Settings">&#9881;</button>
             </div>
-        </div>
+        </header>
 
-        <!-- RIGHT: Chat Panel -->
-        <div class="chat-panel">
-            <div class="chat-container" id="chatContainer">
-                <div class="welcome-message" id="welcomeMessage">
-                    <div class="welcome-icon">
-                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                            <circle cx="24" cy="24" r="22" stroke="url(#wGrad)" stroke-width="2" fill="none"/>
-                            <circle cx="24" cy="24" r="8" fill="url(#wGrad)"/>
-                            <defs><linearGradient id="wGrad" x1="0" y1="0" x2="48" y2="48">
-                                <stop offset="0%" stop-color="#00d4ff"/>
-                                <stop offset="100%" stop-color="#3b8bff"/>
-                            </linearGradient></defs>
-                        </svg>
+        <!-- LEFT SIDEBAR -->
+        <aside id="sidebar">
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="active"><a href="#">&#127968; Command Center</a></li>
+                    <li><a href="#">&#129472; AI Core</a></li>
+                    <li><a href="#">&#128101; Agents <span class="badge">4</span></a></li>
+                    <li><a href="#">&#10004;&#65039; Tasks</a></li>
+                    <li><a href="#">&#129462; Memory</a></li>
+                    <li><a href="#">&#128214; Knowledge Base</a></li>
+                    <li><a href="#">&#9881; Settings</a></li>
+                </ul>
+            </nav>
+            <div class="voice-status-section">
+                <h3>VOICE STATUS</h3>
+                <button id="sidebarMicBtn" class="circular-mic-btn" aria-label="Tap to Speak">&#127897;</button>
+                <p>Tap to Speak</p>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT AREA -->
+        <main id="mainGrid">
+            <!-- Row 1 -->
+            <section id="aiCorePanel" class="panel">
+                <h2>AI CORE OVERVIEW</h2>
+                <ul class="status-list">
+                    <li>AI Core: <span id="aiCoreStatus" class="status-value green">Active</span></li>
+                    <li>Memory: <span id="memoryCount" class="status-value">0 Stored</span></li>
+                    <li>Voice: <span id="voiceStatus" class="status-value green">Online</span></li>
+                    <li>Agents: <span id="agentCount" class="status-value">4 Ready</span></li>
+                    <li>System: <span id="systemStatus" class="status-value green">Optimal</span></li>
+                </ul>
+            </section>
+
+            <section id="aiCoreSpherePanel" class="panel center-panel">
+                <canvas id="coreCanvas" width="350" height="350"></canvas>
+                <div class="core-overlay">
+                    <div class="core-title">WELLSY</div>
+                    <div class="core-subtitle">AI CORE</div>
+                    <div class="core-version">v2.0.0</div>
+                </div>
+            </section>
+
+            <!-- Row 2 -->
+            <section id="agentsPanel" class="panel">
+                <div class="panel-header">
+                    <h2>ACTIVE AGENTS</h2>
+                    <a href="#" class="view-link">View All &gt;</a>
+                </div>
+                <div class="agents-grid">
+                    <div class="agent-card" id="agentCard-media">
+                        <div class="agent-icon">&#127925;</div>
+                        <div class="agent-name">Media Agent</div>
+                        <div id="agentStatus-media" class="agent-status">Standby</div>
                     </div>
-                    <h2>Good to see you, Moksh.</h2>
-                    <p>Multi-Agent Solar System online (Supervisor + 4 Specialized Sub-Agents). How can I assist you?</p>
+                    <div class="agent-card" id="agentCard-comms">
+                        <div class="agent-icon">&#128172;</div>
+                        <div class="agent-name">Comms Agent</div>
+                        <div id="agentStatus-comms" class="agent-status">Active</div>
+                    </div>
+                    <div class="agent-card" id="agentCard-os">
+                        <div class="agent-icon">&#128421;&#65039;</div>
+                        <div class="agent-name">System Agent</div>
+                        <div id="agentStatus-os" class="agent-status">Active</div>
+                    </div>
+                    <div class="agent-card" id="agentCard-research">
+                        <div class="agent-icon">&#128300;</div>
+                        <div class="agent-name">Research Agent</div>
+                        <div id="agentStatus-research" class="agent-status">Standby</div>
+                    </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- Status Bar -->
-            <div class="status-bar" id="statusBar">
-                <div class="status-indicator">
-                    <div class="status-dot online" id="statusDot"></div>
-                    <span id="statusText">Connecting...</span>
+            <section id="timelinePanel" class="panel">
+                <div class="panel-header">
+                    <h2>MISSION TIMELINE</h2>
+                    <span class="timeline-date">Today</span>
                 </div>
-                <div class="mic-waveform" id="micWaveform">
-                    <canvas id="micCanvas" width="140" height="28"></canvas>
+                <div id="timelineList" class="timeline-container">
+                    <div class="timeline-item">
+                        <div class="time">08:00</div>
+                        <div class="description">Morning Briefing Prepared</div>
+                        <div class="status-badge success">COMPLETED</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="time">10:30</div>
+                        <div class="description">System Diagnostics Run</div>
+                        <div class="status-badge success">COMPLETED</div>
+                    </div>
+                    <div class="timeline-item">
+                        <div class="time">14:00</div>
+                        <div class="description">Compile Research Report</div>
+                        <div class="status-badge pending">PENDING</div>
+                    </div>
                 </div>
-            </div>
+                <a href="#" class="view-link bottom-link">View Full Schedule &gt;</a>
+            </section>
 
-            <!-- Input Area -->
-            <div class="input-area">
-                <button class="mic-toggle-btn" id="micBtn" title="Toggle Conversation Mode">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                        <line x1="12" y1="19" x2="12" y2="23"/>
-                        <line x1="8" y1="23" x2="16" y2="23"/>
-                    </svg>
-                </button>
-                <input type="text" id="messageInput" placeholder="Speak or type a command..." autocomplete="off" autofocus>
-                <button class="send-btn" id="sendBtn">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="22" y1="2" x2="11" y2="13"/>
-                        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-                    </svg>
-                </button>
-                <button class="stop-btn" id="stopBtn" title="Emergency Stop">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <rect x="4" y="4" width="16" height="16" rx="2"/>
-                    </svg>
+            <section id="quickCmdsPanel" class="panel">
+                <h2>QUICK COMMANDS</h2>
+                <div class="quick-commands-grid">
+                    <button id="cmdNewTask" class="cmd-btn">Start New Task</button>
+                    <button id="cmdCalendar" class="cmd-btn">Open Calendar</button>
+                    <button id="cmdVoiceChat" class="cmd-btn">Start Voice Chat</button>
+                    <button id="cmdWorkflow" class="cmd-btn">Run Workflow</button>
+                </div>
+            </section>
+
+            <!-- Row 3 -->
+            <section id="sysMonitorPanel" class="panel">
+                <h2>SYSTEM MONITOR</h2>
+                <div class="gauges-container">
+                    <canvas id="gaugeCanvas" width="300" height="120"></canvas>
+                    <div class="gauge-labels">
+                        <div class="gauge-label">CPU: <span id="cpuValue">45%</span></div>
+                        <div class="gauge-label">RAM: <span id="ramValue">60%</span></div>
+                        <div class="gauge-label">Disk: <span id="diskValue">32%</span></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="memoryPanel" class="panel">
+                <h2>MEMORY INSIGHTS</h2>
+                <ul class="stats-list">
+                    <li>Memories: <span id="totalMemories">0</span></li>
+                    <li>Session Turns: <span id="sessionTurns">0</span></li>
+                    <li>Tool Calls: <span id="toolCalls">0</span></li>
+                </ul>
+                <a href="#" class="view-link bottom-link">View Memory Map &gt;</a>
+            </section>
+
+            <section id="chatSection" class="panel">
+                <div class="chat-header">
+                    <h2>COMMUNICATION CHANNEL</h2>
+                    <div class="status-bar">
+                        <span id="statusDot" class="status-dot green"></span>
+                        <span id="statusText">Connected to Core</span>
+                    </div>
+                </div>
+                <div id="chatContainer" class="chat-container">
+                    <div class="chat-message system">Welcome to Wellsy Command Center. How can I assist you?</div>
+                </div>
+                <div class="chat-input-area">
+                    <button id="micBtn" class="icon-btn" aria-label="Microphone">&#127897;</button>
+                    <input type="text" id="messageInput" placeholder="Type a command...">
+                    <button id="sendBtn" class="icon-btn" aria-label="Send">&#10148;</button>
+                    <button id="stopBtn" class="icon-btn" aria-label="Stop">&#9209;</button>
+                </div>
+            </section>
+        </main>
+
+        <!-- RIGHT SIDEBAR -->
+        <aside id="rightSidebar">
+            <section id="intelFeed" class="panel feed-panel">
+                <div class="panel-header">
+                    <h2>LIVE INTELLIGENCE FEED</h2>
+                    <span class="live-badge">LIVE</span>
+                </div>
+                <div id="intelList" class="intel-container">
+                    <div class="intel-item">
+                        <div class="intel-icon">&#8505;</div>
+                        <div class="intel-content">
+                            <div class="intel-text">Security definitions updated.</div>
+                            <div class="intel-meta">
+                                <span class="type-badge info">INFO</span>
+                                <span class="timestamp">Just now</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="intel-item">
+                        <div class="intel-icon">&#9888;</div>
+                        <div class="intel-content">
+                            <div class="intel-text">High memory usage detected.</div>
+                            <div class="intel-meta">
+                                <span class="type-badge warn">WARN</span>
+                                <span class="timestamp">5m ago</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="intel-item">
+                        <div class="intel-icon">&#128161;</div>
+                        <div class="intel-content">
+                            <div class="intel-text">Consider archiving old tasks.</div>
+                            <div class="intel-meta">
+                                <span class="type-badge tip">TIP</span>
+                                <span class="timestamp">1h ago</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="intel-item">
+                        <div class="intel-icon">&#128308;</div>
+                        <div class="intel-content">
+                            <div class="intel-text">News: Global markets open high.</div>
+                            <div class="intel-meta">
+                                <span class="type-badge live">LIVE</span>
+                                <span class="timestamp">2h ago</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <a href="#" class="view-link bottom-link">View All Intelligence &gt;</a>
+            </section>
+        </aside>
+
+        <!-- BOTTOM BAR -->
+        <footer id="bottomBar">
+            <div class="bottom-bar-left">
+                <span id="locationText" class="info-item">&#128205; New York, NY</span>
+                <span id="weatherText" class="info-item">&#9728;&#65039; 72&deg;F Clear</span>
+                <span id="networkText" class="info-item">&#128246; 1.2 Gbps</span>
+            </div>
+            <div class="bottom-bar-center">
+                <button id="talkBtn" class="main-talk-btn">
+                    <span class="talk-text">TALK TO WELLSY</span>
+                    <span id="voiceSubtext" class="talk-subtext">Click to speak...</span>
                 </button>
             </div>
-        </div>
+            <div class="bottom-bar-right">
+                <button id="briefingBtn" class="briefing-btn">Executive Briefing</button>
+            </div>
+        </footer>
     </div>
-
     <script src="/renderer.js"></script>
 </body>
 </html>
