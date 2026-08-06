@@ -45,6 +45,10 @@ try:
     from tools.overleaf import OVERLEAF_TOOLS
 except ImportError:
     OVERLEAF_TOOLS = []
+try:
+    from tools.scheduler_tools import SCHEDULER_TOOLS
+except ImportError:
+    SCHEDULER_TOOLS = []
 
 
 # === Domain Tool Bindings ===
@@ -52,6 +56,7 @@ MEDIA_TOOLS = SPOTIFY_TOOLS + YOUTUBE_TOOLS
 COMMS_TOOLS = WHATSAPP_TOOLS + GMAIL_TOOLS + OUTLOOK_TOOLS
 OS_TOOLS = FILE_TOOLS + APP_TOOLS + SYSTEM_TOOLS + CLIPBOARD_TOOLS
 RESEARCH_TOOLS = GEMINI_CHAT_TOOLS + GOOGLE_IMAGES_TOOLS + OVERLEAF_TOOLS
+TASK_TOOLS = SCHEDULER_TOOLS
 
 # === Domain System Prompts ===
 SUPERVISOR_PROMPT = """You are the Supervisor of Wellsy (Jarvis-class AI Multi-Agent System).
@@ -62,9 +67,10 @@ Available Options:
 - CommsAgent: For WhatsApp messaging, reading chats, Gmail, Outlook email tasks.
 - OSAgent: For file operations (read/create/list/search), launching/closing desktop apps, system stats, volume/brightness, clipboard.
 - ResearchAgent: For deep research, Google Images, RAG local knowledge search, Overleaf project management.
+- TaskAgent: For creating, listing, or canceling scheduled background tasks, cron jobs, and reminders.
 - FINISH: Use this when the request is complete, or if it is a general conversational greeting/question that requires no special tools.
 
-Respond with ONLY the exact name of the agent to invoke (MediaAgent, CommsAgent, OSAgent, ResearchAgent, or FINISH). Do not include extra text.
+Respond with ONLY the exact name of the agent to invoke (MediaAgent, CommsAgent, OSAgent, ResearchAgent, TaskAgent, or FINISH). Do not include extra text.
 """
 
 MEDIA_AGENT_PROMPT = """You are Wellsy's Media Sub-Agent 🎵.
@@ -86,3 +92,9 @@ RESEARCH_AGENT_PROMPT = """You are Wellsy's Research & Data Sub-Agent 🔬.
 You specialize in web research, searching local knowledge bases (RAG), fetching Google Images, and managing Overleaf LaTeX projects.
 Provide insightful, concise, and structured answers.
 """
+
+TASK_AGENT_PROMPT = """You are Wellsy's Task & Scheduler Sub-Agent 📅.
+You specialize in scheduling automated background tasks, recurring daily cron jobs, listing active schedules, and canceling reminders.
+Keep responses clear, executive, and Jarvis-like. Use your scheduler tools when needed.
+"""
+

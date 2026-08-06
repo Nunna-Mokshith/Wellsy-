@@ -31,12 +31,15 @@ from agent.agents import (
     COMMS_TOOLS,
     OS_TOOLS,
     RESEARCH_TOOLS,
+    TASK_TOOLS,
     SUPERVISOR_PROMPT,
     MEDIA_AGENT_PROMPT,
     COMMS_AGENT_PROMPT,
     OS_AGENT_PROMPT,
     RESEARCH_AGENT_PROMPT,
+    TASK_AGENT_PROMPT,
 )
+from memory.memory_db import memory_db
 
 # === State Definition ===
 class WellsyState(TypedDict):
@@ -83,7 +86,7 @@ def supervisor_node(state: WellsyState):
     response = llm.invoke([prompt] + messages)
     
     choice = response.content.strip()
-    valid_agents = ["MediaAgent", "CommsAgent", "OSAgent", "ResearchAgent", "FINISH"]
+    valid_agents = ["MediaAgent", "CommsAgent", "OSAgent", "ResearchAgent", "TaskAgent", "FINISH"]
     
     selected_agent = "FINISH"
     for agent in valid_agents:
@@ -106,6 +109,8 @@ def route_supervisor(state: WellsyState) -> str:
         return "os_agent"
     elif next_agent == "ResearchAgent":
         return "research_agent"
+    elif next_agent == "TaskAgent":
+        return "task_agent"
     return END
 
 
@@ -142,6 +147,7 @@ media_agent_node = make_agent_node("MediaAgent", MEDIA_AGENT_PROMPT, MEDIA_TOOLS
 comms_agent_node = make_agent_node("CommsAgent", COMMS_AGENT_PROMPT, COMMS_TOOLS)
 os_agent_node = make_agent_node("OSAgent", OS_AGENT_PROMPT, OS_TOOLS)
 research_agent_node = make_agent_node("ResearchAgent", RESEARCH_AGENT_PROMPT, RESEARCH_TOOLS)
+task_agent_node = make_agent_node("TaskAgent", TASK_AGENT_PROMPT, TASK_TOOLS)
 
 
 # === Build the Multi-Agent Graph ===
@@ -157,6 +163,7 @@ def create_wellsy_multi_agent():
     graph.add_node("comms_agent", comms_agent_node)
     graph.add_node("os_agent", os_agent_node)
     graph.add_node("research_agent", research_agent_node)
+    graph.add_node("task_agent", task_agent_node)
     
     # 3. Add Domain Tools Nodes
     if MEDIA_TOOLS:
@@ -167,6 +174,8 @@ def create_wellsy_multi_agent():
         graph.add_node("os_tools", ToolNode(OS_TOOLS))
     if RESEARCH_TOOLS:
         graph.add_node("research_tools", ToolNode(RESEARCH_TOOLS))
+    if TASK_TOOLS:
+        graph.add_node("task_tools", ToolNode(TASK_TOOLS))
         
     # Set Entry Point
     graph.set_entry_point("supervisor")
@@ -180,6 +189,7 @@ def create_wellsy_multi_agent():
             "comms_agent": "comms_agent",
             "os_agent": "os_agent",
             "research_agent": "research_agent",
+            "task_agent": "task_agent",
             END: END,
         }
     )
@@ -217,6 +227,14 @@ def create_wellsy_multi_agent():
     if RESEARCH_TOOLS:
         graph.add_edge("research_tools", "research_agent")
 
+    graph.add_conditional_edges(
+        "task_agent",
+        lambda state: should_continue_tools(state, "task_tools" if TASK_TOOLS else "supervisor"),
+        {"task_tools": "task_tools" if TASK_TOOLS else "supervisor", "supervisor": "supervisor"}
+    )
+    if TASK_TOOLS:
+        graph.add_edge("task_tools", "task_agent")
+
     return graph.compile()
 
 
@@ -227,13 +245,23 @@ wellsy_agent = create_wellsy_multi_agent()
 async def chat(user_message: str, history: list = None) -> tuple[str, dict]:
     """
     Send a message to Wellsy Multi-Agent system and get a response.
+    Includes persistent memory recall context.
     Returns: (response_text, rate_limit_status)
     """
     if history is None:
         history = []
 
+    # Recall relevant memories from DB
+    memories = memory_db.recall_memories(query=user_message, limit=5)
+    memory_context = ""
+    if memories:
+        mem_lines = [f"- [{m['type']}] {m['content']}" for m in memories]
+        memory_context = "\n[RECALLED RELEVANT MEMORIES]:\n" + "\n".join(mem_lines) + "\n"
+
+    sys_prompt = WELLSY_SYSTEM_PROMPT + memory_context
+
     # Build message list
-    messages = [SystemMessage(content=WELLSY_SYSTEM_PROMPT)]
+    messages = [SystemMessage(content=sys_prompt)]
     messages.extend(history)
     messages.append(HumanMessage(content=user_message))
 
@@ -258,5 +286,9 @@ async def chat(user_message: str, history: list = None) -> tuple[str, dict]:
     else:
         response_text = "All requested actions have been completed, Moksh."
 
+    # Store turn in memory DB
+    memory_db.store_memory("SESSION_TURN", f"User: {user_message} | Wellsy: {response_text[:120]}...")
+
     status = rate_limiter.get_status()
     return response_text, status
+

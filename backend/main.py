@@ -125,6 +125,69 @@ async def get_agents_status():
     }
 
 
+from memory.memory_db import memory_db
+from memory.file_scanner import file_scanner
+from scheduler.scheduler import task_scheduler
+
+# === Startup Lifecycle ===
+@app.on_event("startup")
+async def on_startup():
+    print("  [+] Running passive file scanner check...")
+    try:
+        greeting_diff = file_scanner.generate_greeting_summary()
+        if greeting_diff:
+            print(f"  [+] File Diff: {greeting_diff}")
+    except Exception as e:
+        print(f"  [!] File scanner error: {e}")
+
+    # Start Task Scheduler background loop
+    asyncio.create_task(task_scheduler.start_scheduler_loop())
+
+
+@app.get("/api/memory/stats")
+async def get_memory_stats():
+    """Get persistent memory statistics."""
+    try:
+        return memory_db.get_stats()
+    except Exception as e:
+        return {"total_memories": 0, "error": str(e)}
+
+
+@app.get("/api/schedules")
+async def get_schedules():
+    """List active scheduled background tasks."""
+    try:
+        return {"schedules": task_scheduler.list_schedules(include_disabled=True)}
+    except Exception as e:
+        return {"schedules": [], "error": str(e)}
+
+
+@app.post("/api/schedules")
+async def create_schedule(data: dict):
+    """Add a new scheduled task."""
+    try:
+        res = task_scheduler.add_schedule(
+            title=data.get("title", "Task"),
+            action=data.get("action", "general"),
+            trigger_time=data.get("trigger_time", "23:00"),
+            schedule_type=data.get("schedule_type", "ONCE"),
+            target=data.get("target")
+        )
+        return {"status": "success", "schedule": res}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.delete("/api/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: int):
+    """Cancel a scheduled task."""
+    try:
+        success = task_scheduler.remove_schedule(schedule_id)
+        return {"status": "success" if success else "not_found"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 # === 📁 Local RAG API Endpoints ===
 
 @app.post("/api/rag/sync")
